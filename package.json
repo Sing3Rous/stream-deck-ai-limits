@@ -1,7 +1,9 @@
 {
     "scripts": {
         "build": "rollup -c",
-        "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.singerous.ai-limits\""
+        "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.singerous.ai-limits\"",
+        "test": "node --experimental-strip-types --test \"tests/**/*.test.ts\"",
+        "lint:tsc": "tsc --noEmit"
     },
     "type": "module",
     "devDependencies": {
