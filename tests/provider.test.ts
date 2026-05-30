@@ -15,9 +15,9 @@ const FRESH_CREDS: ClaudeCredentials = {
 
 const RAW = { five_hour: { utilization: 80, resets_at: "2026-05-30T15:00:00Z" }, seven_day: { utilization: 40, resets_at: "2026-06-02T00:00:00Z" } };
 
-function makeProvider(deps: Partial<ClaudeProviderDeps>): ClaudeProvider {
+function makeProvider(deps: Partial<ClaudeProviderDeps>, cacheOpts?: { forceMinIntervalMs?: number }): ClaudeProvider {
 	return new ClaudeProvider({
-		cache: new UsageCache({ provider: "claude" }),
+		cache: new UsageCache({ provider: "claude", ...cacheOpts }),
 		deps,
 	});
 }
@@ -146,7 +146,24 @@ test("second call within TTL is served from cache (one fetch)", async () => {
 	assert.equal(fetches, 1);
 });
 
-test("force bypasses the cache TTL", async () => {
+test("force bypasses the cache TTL (throttle disabled)", async () => {
+	let fetches = 0;
+	const provider = makeProvider(
+		{
+			readCredentials: async () => FRESH_CREDS,
+			fetchUsage: async () => {
+				fetches++;
+				return RAW;
+			},
+		},
+		{ forceMinIntervalMs: 0 },
+	);
+	await provider.getUsage();
+	await provider.getUsage({ force: true });
+	assert.equal(fetches, 2);
+});
+
+test("rapid forced presses are throttled (default 10s)", async () => {
 	let fetches = 0;
 	const provider = makeProvider({
 		readCredentials: async () => FRESH_CREDS,
@@ -155,7 +172,8 @@ test("force bypasses the cache TTL", async () => {
 			return RAW;
 		},
 	});
-	await provider.getUsage();
-	await provider.getUsage({ force: true });
-	assert.equal(fetches, 2);
+	await provider.getUsage(); // 1 real fetch
+	await provider.getUsage({ force: true }); // within 10s → throttled
+	await provider.getUsage({ force: true }); // within 10s → throttled
+	assert.equal(fetches, 1);
 });

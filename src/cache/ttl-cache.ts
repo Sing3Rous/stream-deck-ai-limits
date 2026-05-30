@@ -7,11 +7,21 @@ export const DEFAULT_TTL_MS = 60_000;
 /** After a 429, wait at least this long before hitting the network again (serve stale). */
 export const RATE_LIMIT_BACKOFF_MS = 5 * 60_000;
 
+/**
+ * Minimum gap between *forced* network fetches (key presses). Rapid presses inside this window
+ * just re-serve the cached snapshot instead of hammering the endpoint. Protects against a user
+ * spamming the key into a rate-limit.
+ */
+export const DEFAULT_FORCE_MIN_INTERVAL_MS = 10_000;
+
 /** Produces a fresh snapshot, or throws a {@link UsageError} on failure. */
 export type SnapshotFetcher = () => Promise<UsageSnapshot>;
 
 export interface GetOptions {
-	/** Bypass the TTL and fetch now (used by key press). Backoff still applies for 429. */
+	/**
+	 * Bypass the TTL and fetch now (key press). Still subject to the force throttle
+	 * ({@link UsageCacheOptions.forceMinIntervalMs}) and the 429 backoff.
+	 */
 	force?: boolean;
 }
 
@@ -20,6 +30,8 @@ export interface UsageCacheOptions {
 	provider: UsageProvider;
 	ttlMs?: number;
 	rateLimitBackoffMs?: number;
+	/** Throttle for forced fetches (key press). Defaults to {@link DEFAULT_FORCE_MIN_INTERVAL_MS}. */
+	forceMinIntervalMs?: number;
 	/** Injectable clock for tests. */
 	now?: () => number;
 }
@@ -37,6 +49,7 @@ export class UsageCache {
 	private readonly provider: UsageProvider;
 	private readonly ttlMs: number;
 	private readonly backoffMs: number;
+	private readonly forceMinIntervalMs: number;
 	private readonly now: () => number;
 
 	private last: UsageSnapshot | null = null;
@@ -48,6 +61,7 @@ export class UsageCache {
 		this.provider = options.provider;
 		this.ttlMs = options.ttlMs ?? DEFAULT_TTL_MS;
 		this.backoffMs = options.rateLimitBackoffMs ?? RATE_LIMIT_BACKOFF_MS;
+		this.forceMinIntervalMs = options.forceMinIntervalMs ?? DEFAULT_FORCE_MIN_INTERVAL_MS;
 		this.now = options.now ?? Date.now;
 	}
 
@@ -58,11 +72,18 @@ export class UsageCache {
 
 	async get(fetcher: SnapshotFetcher, options: GetOptions = {}): Promise<UsageSnapshot> {
 		const now = this.now();
-		const fresh = this.last !== null && now - this.lastFetchedAt < this.ttlMs;
+		const age = now - this.lastFetchedAt;
+		const fresh = this.last !== null && age < this.ttlMs;
 
 		// Within TTL and not forced → serve cache.
 		if (fresh && !options.force) {
 			return this.last as UsageSnapshot;
+		}
+
+		// Forced (key press) but we fetched very recently → re-serve cache without a network
+		// call. Throttles rapid presses so the user can't spam the endpoint into a rate-limit.
+		if (options.force && this.last !== null && age < this.forceMinIntervalMs) {
+			return this.last;
 		}
 
 		// Under rate-limit backoff → never hit the network, even on force. Serve stale if we can.

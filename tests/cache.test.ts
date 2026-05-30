@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { UsageCache, DEFAULT_TTL_MS } from "../src/cache/ttl-cache.ts";
+import { UsageCache, DEFAULT_TTL_MS, DEFAULT_FORCE_MIN_INTERVAL_MS } from "../src/cache/ttl-cache.ts";
 import { rateLimited, genericError } from "../src/utils/errors.ts";
 import type { UsageSnapshot } from "../src/providers/types.ts";
 
@@ -64,17 +64,36 @@ test("after TTL expires, get fetches again", async () => {
 	assert.equal(second.session.usedPercent, 2);
 });
 
-test("force bypasses a fresh TTL", async () => {
-	const cache = new UsageCache({ provider: "claude" });
+test("force bypasses a fresh TTL once past the force throttle", async () => {
+	const c = clock();
+	const cache = new UsageCache({ provider: "claude", now: c.now });
 	let calls = 0;
 	const fetcher = async () => {
 		calls++;
 		return okSnapshot(calls);
 	};
 	await cache.get(fetcher);
+	c.advance(DEFAULT_FORCE_MIN_INTERVAL_MS + 1); // clear the force throttle
 	const forced = await cache.get(fetcher, { force: true });
 	assert.equal(calls, 2);
 	assert.equal(forced.session.usedPercent, 2);
+});
+
+test("force within the throttle window re-serves cache without fetching", async () => {
+	const c = clock();
+	const cache = new UsageCache({ provider: "claude", now: c.now });
+	let calls = 0;
+	const fetcher = async () => {
+		calls++;
+		return okSnapshot(calls);
+	};
+	await cache.get(fetcher); // calls=1
+	c.advance(DEFAULT_FORCE_MIN_INTERVAL_MS - 1);
+	const r1 = await cache.get(fetcher, { force: true }); // throttled → no fetch
+	const r2 = await cache.get(fetcher, { force: true }); // throttled → no fetch
+	assert.equal(calls, 1, "rapid forced presses do not hit the network");
+	assert.equal(r1.session.usedPercent, 1);
+	assert.equal(r2.session.usedPercent, 1);
 });
 
 test("concurrent gets share a single in-flight fetch (dedupe)", async () => {
