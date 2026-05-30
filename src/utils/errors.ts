@@ -40,3 +40,14 @@ export function genericError(message: string): UsageError {
 export function isUsageError(value: unknown): value is UsageError {
 	return value instanceof UsageError;
 }
+
+/**
+ * Signals an HTTP 401 from a usage endpoint, so the provider can attempt exactly one token
+ * refresh + retry before surfacing `auth_required` to the UI.
+ */
+export class UnauthorizedError extends Error {
+	constructor(message = "Usage request was unauthorized.") {
+		super(message);
+		this.name = "UnauthorizedError";
+	}
+}

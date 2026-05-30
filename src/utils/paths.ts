@@ -10,17 +10,35 @@ export function defaultClaudeCredentialsPath(): string {
 }
 
 /**
- * Resolve the credentials path to use, honoring an optional user-provided override (Property
- * Inspector, Phase 8). A `~` prefix is expanded to the home directory. Empty/whitespace
- * overrides fall back to the default.
+ * Default location of the Codex CLI credentials file, created by the Codex ChatGPT login:
+ * `~/.codex/auth.json`.
  */
-export function resolveClaudeCredentialsPath(customPath?: string): string {
+export function defaultCodexCredentialsPath(): string {
+	return path.join(os.homedir(), ".codex", "auth.json");
+}
+
+/**
+ * Resolve a credentials path, honoring an optional user-provided override (Property Inspector).
+ * A `~` prefix is expanded to the home directory; empty/whitespace overrides fall back to the
+ * provided default.
+ */
+export function resolveCredentialsPath(defaultPath: string, customPath?: string): string {
 	const trimmed = customPath?.trim();
 	if (!trimmed) {
-		return defaultClaudeCredentialsPath();
+		return defaultPath;
 	}
 	if (trimmed === "~" || trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
 		return path.join(os.homedir(), trimmed.slice(1));
 	}
 	return path.resolve(trimmed);
+}
+
+/** @see resolveCredentialsPath — Claude default. */
+export function resolveClaudeCredentialsPath(customPath?: string): string {
+	return resolveCredentialsPath(defaultClaudeCredentialsPath(), customPath);
+}
+
+/** @see resolveCredentialsPath — Codex default. */
+export function resolveCodexCredentialsPath(customPath?: string): string {
+	return resolveCredentialsPath(defaultCodexCredentialsPath(), customPath);
 }

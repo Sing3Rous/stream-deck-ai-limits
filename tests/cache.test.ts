@@ -1,7 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { UsageCache, DEFAULT_TTL_MS, DEFAULT_FORCE_MIN_INTERVAL_MS } from "../src/cache/ttl-cache.ts";
+import {
+	UsageCache,
+	DEFAULT_TTL_MS,
+	DEFAULT_FORCE_MIN_INTERVAL_MS,
+	MIN_RATE_LIMIT_BACKOFF_MS,
+} from "../src/cache/ttl-cache.ts";
 import { rateLimited, genericError } from "../src/utils/errors.ts";
 import type { UsageSnapshot } from "../src/providers/types.ts";
 
@@ -233,22 +238,34 @@ test("honors Retry-After: backoff ends after the server-specified delay", async 
 	assert.equal(after.session.usedPercent, 70);
 });
 
-test("Retry-After is clamped to a 15s floor", async () => {
+test("Retry-After=0 is NOT trusted: applies the minimum backoff to avoid a 429 loop", async () => {
 	const c = clock();
 	const cache = new UsageCache({ provider: "claude", now: c.now });
 	await cache.get(async () => okSnapshot(60));
 	c.advance(DEFAULT_TTL_MS + 1);
 
 	let calls = 0;
-	await cache.get(async () => {
+	const limited = await cache.get(async () => {
 		calls++;
-		throw rateLimited("429", 1_000); // absurdly short → must be floored to 15s
+		throw rateLimited("429", 0); // server says "retry now" but is still throttling
 	});
-	// At +10s (under the 15s floor) → still backed off.
-	c.advance(10_000);
+	assert.equal(limited.status, "stale"); // had a prior snapshot
+	assert.equal(calls, 1);
+
+	// Well within the minimum backoff → no network call, even forced.
+	c.advance(MIN_RATE_LIMIT_BACKOFF_MS - 5_000);
 	await cache.get(async () => {
 		calls++;
 		return okSnapshot(70);
 	}, { force: true });
-	assert.equal(calls, 1, "floored backoff still active at 10s");
+	assert.equal(calls, 1, "minimum backoff still active despite retry-after=0");
+
+	// Past the minimum backoff → fetches again.
+	c.advance(6_000);
+	const after = await cache.get(async () => {
+		calls++;
+		return okSnapshot(70);
+	});
+	assert.equal(calls, 2);
+	assert.equal(after.session.usedPercent, 70);
 });

@@ -1,5 +1,9 @@
-import { authRequired, genericError, rateLimited } from "../../utils/errors.ts";
+import { authRequired, genericError, rateLimited, UnauthorizedError } from "../../utils/errors.ts";
+import { parseRetryAfterMs } from "../../utils/http.ts";
 import type { ClaudeUsageResponse } from "./claude-types.ts";
+
+/** Re-exported for existing call sites/tests. */
+export { UnauthorizedError };
 
 /** Claude usage endpoint (same one the Claude Code CLI calls). Unofficial — may change. */
 const USAGE_ENDPOINT = "https://api.anthropic.com/api/oauth/usage";
@@ -13,17 +17,6 @@ function usageHeaders(accessToken: string): Record<string, string> {
 		"anthropic-version": "2023-06-01",
 		"anthropic-beta": "oauth-2025-04-20",
 	};
-}
-
-/**
- * Distinguishes a 401 from other failures so the provider can attempt exactly one token
- * refresh + retry before surfacing `auth_required` to the UI.
- */
-export class UnauthorizedError extends Error {
-	constructor() {
-		super("Claude usage request was unauthorized.");
-		this.name = "UnauthorizedError";
-	}
 }
 
 /**
@@ -72,19 +65,4 @@ export async function fetchClaudeUsage(accessToken: string): Promise<ClaudeUsage
 	} catch {
 		throw genericError("Claude usage response was not valid JSON.");
 	}
-}
-
-/**
- * Parse a `Retry-After` header into milliseconds. Supports the delta-seconds form (e.g. "72").
- * Returns `undefined` when absent or unparseable.
- */
-function parseRetryAfterMs(headerValue: string | null): number | undefined {
-	if (!headerValue) {
-		return undefined;
-	}
-	const seconds = Number(headerValue.trim());
-	if (Number.isFinite(seconds) && seconds >= 0) {
-		return seconds * 1000;
-	}
-	return undefined;
 }

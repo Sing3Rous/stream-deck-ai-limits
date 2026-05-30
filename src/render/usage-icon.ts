@@ -17,17 +17,23 @@ const SIZE = 144;
  */
 export function renderUsageIcon(snapshot: UsageSnapshot): string {
 	const status = snapshot.status;
+	const label = providerLabel(snapshot.provider);
 
 	if (status === "auth_required" || status === "rate_limited" || status === "error") {
-		return renderMessage(status, messageLines(status));
+		return renderMessage(status, messageLines(status, label));
 	}
 
 	// No usable numbers at all → treat as a generic message even if status looked ok.
 	if (snapshot.session.usedPercent === null && snapshot.weekly.usedPercent === null) {
-		return renderMessage("error", ["Claude", "No", "Data"]);
+		return renderMessage("error", [label, "No", "Data"]);
 	}
 
 	return renderBars(snapshot);
+}
+
+/** Short display name shown on the key for each provider. */
+function providerLabel(provider: UsageSnapshot["provider"]): string {
+	return provider === "codex" ? "Codex" : "Claude";
 }
 
 /** Encode an SVG string as a data URL accepted by `KeyAction.setImage`. */
@@ -89,15 +95,15 @@ function renderMessage(status: UsageStatus, lines: string[]): string {
 </svg>`;
 }
 
-function messageLines(status: UsageStatus): string[] {
+function messageLines(status: UsageStatus, label: string): string[] {
 	switch (status) {
 		case "auth_required":
-			return ["Claude", "Login", "Required"];
+			return [label, "Login", "Required"];
 		case "rate_limited":
-			return ["Claude", "Rate", "Limited"];
+			return [label, "Rate", "Limited"];
 		case "error":
 		default:
-			return ["Claude", "Error"];
+			return [label, "Error"];
 	}
 }
 

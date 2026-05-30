@@ -18,6 +18,22 @@
 					"TitleAlignment": "middle"
 				}
 			]
+		},
+		{
+			"Name": "Codex Usage",
+			"UUID": "com.singerous.ai-limits.codex-usage",
+			"Icon": "imgs/actions/codex/icon",
+			"Tooltip": "Show Codex CLI 5-hour and weekly usage limits.",
+			"PropertyInspectorPath": "ui/codex.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/codex/key",
+					"TitleAlignment": "middle"
+				}
+			]
 		}
 	],
 	"Category": "AI Limits",
@@ -40,7 +56,7 @@
 		}
 	],
 	"Nodejs": {
-		"Version": "24",
+		"Version": "20",
 		"Debug": "enabled"
 	},
 	"UUID": "com.singerous.ai-limits"

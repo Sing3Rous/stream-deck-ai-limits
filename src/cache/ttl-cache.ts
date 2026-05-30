@@ -4,8 +4,15 @@ import type { UsageProvider, UsageSnapshot } from "../providers/types.ts";
 /** Default cache TTL and timer interval (see project decision: 60s default, 15s floor). */
 export const DEFAULT_TTL_MS = 60_000;
 
-/** After a 429, wait at least this long before hitting the network again (serve stale). */
+/** Default backoff after a 429 with no usable Retry-After (also the ceiling for honored values). */
 export const RATE_LIMIT_BACKOFF_MS = 5 * 60_000;
+
+/**
+ * Minimum backoff after a 429. The Claude endpoint sometimes returns `Retry-After: 0` while
+ * still throttling — honoring 0 literally would loop straight back into another 429. So we
+ * never wait less than this, even when the server says "retry now".
+ */
+export const MIN_RATE_LIMIT_BACKOFF_MS = 60_000;
 
 /**
  * Minimum gap between *forced* network fetches (key presses). Rapid presses inside this window
@@ -113,12 +120,14 @@ export class UsageCache {
 			return snapshot;
 		} catch (err) {
 			if (isUsageError(err) && err.status === "rate_limited") {
-				// Honor the server's Retry-After when present; otherwise fall back to the default
-				// backoff. Clamp so a tiny/huge value can't make us hammer or freeze for too long.
+				// Back off before hitting the network again. Honor a *large* Retry-After, but never
+				// wait less than MIN_RATE_LIMIT_BACKOFF_MS: this endpoint can return Retry-After: 0
+				// while still throttling, so trusting 0 would loop straight back into another 429.
+				// Ceiling at the default backoff so a huge value can't freeze us for too long.
 				const requested = err.retryAfterMs;
 				const backoff =
 					typeof requested === "number"
-						? Math.min(Math.max(requested, 15_000), this.backoffMs)
+						? Math.min(Math.max(requested, MIN_RATE_LIMIT_BACKOFF_MS), this.backoffMs)
 						: this.backoffMs;
 				this.rateLimitedUntil = this.now() + backoff;
 				return this.staleOr(this.rateLimitedSnapshot(err.message), "rate_limited");

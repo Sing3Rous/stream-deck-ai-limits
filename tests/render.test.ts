@@ -90,3 +90,28 @@ test("toDataUrl produces a base64 svg data URL that round-trips", () => {
 	const decoded = Buffer.from(url.split(",")[1], "base64").toString("utf-8");
 	assert.equal(decoded, svg);
 });
+
+test("provider label: codex auth_required shows 'Codex', not 'Claude'", () => {
+	const svg = renderUsageIcon(
+		snapshot({
+			provider: "codex",
+			status: "auth_required",
+			session: { usedPercent: null, resetAt: null },
+			weekly: { usedPercent: null, resetAt: null },
+		}),
+	);
+	assert.match(svg, /Codex/);
+	assert.doesNotMatch(svg, /Claude/);
+});
+
+test("provider label: claude error shows 'Claude'", () => {
+	const svg = renderUsageIcon(
+		snapshot({
+			provider: "claude",
+			status: "error",
+			session: { usedPercent: null, resetAt: null },
+			weekly: { usedPercent: null, resetAt: null },
+		}),
+	);
+	assert.match(svg, /Claude/);
+});
