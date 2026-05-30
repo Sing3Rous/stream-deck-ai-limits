@@ -2,16 +2,37 @@
 <html>
 	<head lang="en">
 		<meta charset="utf-8" />
-		<title>Claude Usage</title>
+		<title>Claude Usage Settings</title>
+		<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
 	</head>
 	<body>
 		<!--
-			Phase 1 placeholder Property Inspector. Real settings (refresh interval, warning /
-			critical thresholds, custom credentials path) are added in Phase 8 using the
-			@elgato sdpi-components library.
+			Settings auto-persist to the action via the `setting` attribute and apply live in the
+			plugin (onDidReceiveSettings). Components: https://sdpi-components.dev/docs/components
 		-->
-		<p style="font-family: sans-serif; font-size: 12px; color: #aaa; padding: 8px;">
-			Claude Usage — settings coming soon.
-		</p>
+		<sdpi-item label="Refresh interval (sec)">
+			<sdpi-range setting="refreshIntervalSec" min="15" max="300" step="5" default="60" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Warning at (%)">
+			<sdpi-range setting="warningThreshold" min="0" max="100" step="5" default="70" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Critical at (%)">
+			<sdpi-range setting="criticalThreshold" min="0" max="100" step="5" default="90" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Credentials path">
+			<sdpi-textfield
+				setting="customCredentialsPath"
+				placeholder="Default: ~/.claude/.credentials.json"
+			></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item>
+			<small style="color: var(--sdpi-color-muted, #999);">
+				Leave the path empty to use the default Claude Code credentials location.
+			</small>
+		</sdpi-item>
 	</body>
 </html>

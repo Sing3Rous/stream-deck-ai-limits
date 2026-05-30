@@ -1,28 +1,36 @@
 import { action, SingletonAction } from "@elgato/streamdeck";
-import type { KeyAction, KeyDownEvent, WillAppearEvent, WillDisappearEvent } from "@elgato/streamdeck";
+import type {
+	DidReceiveSettingsEvent,
+	KeyAction,
+	KeyDownEvent,
+	WillAppearEvent,
+	WillDisappearEvent,
+} from "@elgato/streamdeck";
 
 import { ClaudeProvider } from "../providers/claude/claude-provider.ts";
 import { UsageCache } from "../cache/ttl-cache.ts";
-import type { StatusThresholds, UsageSnapshot } from "../providers/types.ts";
+import type { UsageSnapshot } from "../providers/types.ts";
 import { renderUsageIcon, toDataUrl } from "../render/usage-icon.ts";
+import {
+	resolveClaudeSettings,
+	type ClaudeActionSettings,
+	type ResolvedClaudeSettings,
+} from "../settings/claude-settings.ts";
 import { logger } from "../utils/logger.ts";
-
-/** Default / floor refresh cadence (see project decision: 60s default, 15s floor). */
-const DEFAULT_INTERVAL_SEC = 60;
-const MIN_INTERVAL_SEC = 15;
 
 /**
  * Claude Usage action — live data.
  *
  * Each visible key gets its own {@link ClaudeProvider} (with its own cache + timer). The timer
- * and cache TTL share one interval; key press forces an immediate refresh.
+ * and cache TTL share the configured interval; a key press forces an immediate (throttled)
+ * refresh. Settings changes from the Property Inspector apply live, without a restart.
  */
 @action({ UUID: "com.singerous.ai-limits.claude-usage" })
-export class ClaudeUsageAction extends SingletonAction<ClaudeUsageSettings> {
+export class ClaudeUsageAction extends SingletonAction<ClaudeActionSettings> {
 	/** Per-key runtime state, keyed by action instance id. */
 	private readonly instances = new Map<string, KeyRuntime>();
 
-	override async onWillAppear(ev: WillAppearEvent<ClaudeUsageSettings>): Promise<void> {
+	override async onWillAppear(ev: WillAppearEvent<ClaudeActionSettings>): Promise<void> {
 		if (!ev.action.isKey()) {
 			return;
 		}
@@ -31,7 +39,7 @@ export class ClaudeUsageAction extends SingletonAction<ClaudeUsageSettings> {
 		this.startTimer(runtime);
 	}
 
-	override onWillDisappear(ev: WillDisappearEvent<ClaudeUsageSettings>): void {
+	override onWillDisappear(ev: WillDisappearEvent<ClaudeActionSettings>): void {
 		const runtime = this.instances.get(ev.action.id);
 		if (runtime) {
 			clearInterval(runtime.timer);
@@ -39,7 +47,7 @@ export class ClaudeUsageAction extends SingletonAction<ClaudeUsageSettings> {
 		}
 	}
 
-	override async onKeyDown(ev: KeyDownEvent<ClaudeUsageSettings>): Promise<void> {
+	override async onKeyDown(ev: KeyDownEvent<ClaudeActionSettings>): Promise<void> {
 		if (!ev.action.isKey()) {
 			return;
 		}
@@ -47,43 +55,42 @@ export class ClaudeUsageAction extends SingletonAction<ClaudeUsageSettings> {
 		await this.refresh(runtime, { force: true });
 	}
 
-	private ensureRuntime(keyAction: KeyAction, settings: ClaudeUsageSettings): KeyRuntime {
-		const existing = this.instances.get(keyAction.id);
-		const intervalSec = resolveIntervalSec(settings.refreshIntervalSec);
-		const thresholds = resolveThresholds(settings);
-		const customPath = settings.customCredentialsPath?.trim() || undefined;
+	/** Apply Property Inspector changes live: rebuild config, refresh, restart the timer. */
+	override async onDidReceiveSettings(ev: DidReceiveSettingsEvent<ClaudeActionSettings>): Promise<void> {
+		if (!ev.action.isKey()) {
+			return;
+		}
+		const runtime = this.ensureRuntime(ev.action, ev.payload.settings);
+		this.startTimer(runtime);
+		await this.refresh(runtime, { force: false });
+	}
 
-		// Rebuild the provider if config that affects fetching changed (or first appearance).
-		if (
-			!existing ||
-			existing.intervalSec !== intervalSec ||
-			existing.customPath !== customPath ||
-			existing.thresholds.warning !== thresholds.warning ||
-			existing.thresholds.critical !== thresholds.critical
-		) {
+	private ensureRuntime(keyAction: KeyAction, rawSettings: ClaudeActionSettings): KeyRuntime {
+		const resolved = resolveClaudeSettings(rawSettings);
+		const existing = this.instances.get(keyAction.id);
+
+		// Rebuild the provider only if config that affects fetching changed (or first appearance).
+		if (!existing || !sameConfig(existing.config, resolved)) {
 			if (existing) {
 				clearInterval(existing.timer);
 			}
 			const provider = new ClaudeProvider({
-				cache: new UsageCache({ provider: "claude", ttlMs: intervalSec * 1000 }),
-				thresholds,
-				customCredentialsPath: customPath,
+				cache: new UsageCache({ provider: "claude", ttlMs: resolved.intervalSec * 1000 }),
+				thresholds: resolved.thresholds,
+				customCredentialsPath: resolved.customCredentialsPath,
 				logger,
 			});
 			const runtime: KeyRuntime = {
 				action: keyAction,
 				provider,
-				intervalSec,
-				thresholds,
-				customPath,
+				config: resolved,
 				timer: undefined as unknown as ReturnType<typeof setInterval>,
 			};
 			this.instances.set(keyAction.id, runtime);
 			return runtime;
 		}
 
-		// Keep the live action reference fresh.
-		existing.action = keyAction;
+		existing.action = keyAction; // keep the live action reference fresh
 		return existing;
 	}
 
@@ -91,7 +98,7 @@ export class ClaudeUsageAction extends SingletonAction<ClaudeUsageSettings> {
 		clearInterval(runtime.timer);
 		runtime.timer = setInterval(() => {
 			void this.refresh(runtime, { force: false });
-		}, runtime.intervalSec * 1000);
+		}, runtime.config.intervalSec * 1000);
 	}
 
 	private async refresh(runtime: KeyRuntime, options: { force: boolean }): Promise<void> {
@@ -117,40 +124,15 @@ export class ClaudeUsageAction extends SingletonAction<ClaudeUsageSettings> {
 interface KeyRuntime {
 	action: KeyAction;
 	provider: ClaudeProvider;
-	intervalSec: number;
-	thresholds: StatusThresholds;
-	customPath: string | undefined;
+	config: ResolvedClaudeSettings;
 	timer: ReturnType<typeof setInterval>;
 }
 
-/**
- * Persisted settings. The Property Inspector that edits these arrives in Phase 8; until then
- * the defaults apply.
- */
-type ClaudeUsageSettings = {
-	refreshIntervalSec?: number;
-	warningThreshold?: number;
-	criticalThreshold?: number;
-	customCredentialsPath?: string;
-};
-
-function resolveIntervalSec(value: number | undefined): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return DEFAULT_INTERVAL_SEC;
-	}
-	return Math.max(MIN_INTERVAL_SEC, Math.round(value));
-}
-
-function resolveThresholds(settings: ClaudeUsageSettings): StatusThresholds {
-	const warning = clampPercent(settings.warningThreshold, 70);
-	const critical = clampPercent(settings.criticalThreshold, 90);
-	// Ensure critical >= warning so the bands stay coherent.
-	return { warning, critical: Math.max(warning, critical) };
-}
-
-function clampPercent(value: number | undefined, fallback: number): number {
-	if (typeof value !== "number" || !Number.isFinite(value)) {
-		return fallback;
-	}
-	return Math.max(0, Math.min(100, Math.round(value)));
+function sameConfig(a: ResolvedClaudeSettings, b: ResolvedClaudeSettings): boolean {
+	return (
+		a.intervalSec === b.intervalSec &&
+		a.customCredentialsPath === b.customCredentialsPath &&
+		a.thresholds.warning === b.thresholds.warning &&
+		a.thresholds.critical === b.thresholds.critical
+	);
 }
