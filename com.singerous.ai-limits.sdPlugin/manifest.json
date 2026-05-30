@@ -2,7 +2,24 @@
 	"Name": "AI Limits",
 	"Version": "0.1.0.0",
 	"Author": "singerous",
-	"Actions": [],
+	"Actions": [
+		{
+			"Name": "Claude Usage",
+			"UUID": "com.singerous.ai-limits.claude-usage",
+			"Icon": "imgs/actions/claude/icon",
+			"Tooltip": "Show Claude Code 5-hour and weekly usage limits.",
+			"PropertyInspectorPath": "ui/claude.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/claude/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		}
+	],
 	"Category": "AI Limits",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
