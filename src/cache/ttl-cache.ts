@@ -67,7 +67,7 @@ export class UsageCache {
 
 		// Under rate-limit backoff → never hit the network, even on force. Serve stale if we can.
 		if (now < this.rateLimitedUntil) {
-			return this.staleOr(this.rateLimitedSnapshot());
+			return this.staleOr(this.rateLimitedSnapshot(), "rate_limited");
 		}
 
 		// Dedupe: a concurrent caller already triggered the fetch.
@@ -92,20 +92,31 @@ export class UsageCache {
 			return snapshot;
 		} catch (err) {
 			if (isUsageError(err) && err.status === "rate_limited") {
-				this.rateLimitedUntil = this.now() + this.backoffMs;
-				return this.staleOr(this.rateLimitedSnapshot(err.message));
+				// Honor the server's Retry-After when present; otherwise fall back to the default
+				// backoff. Clamp so a tiny/huge value can't make us hammer or freeze for too long.
+				const requested = err.retryAfterMs;
+				const backoff =
+					typeof requested === "number"
+						? Math.min(Math.max(requested, 15_000), this.backoffMs)
+						: this.backoffMs;
+				this.rateLimitedUntil = this.now() + backoff;
+				return this.staleOr(this.rateLimitedSnapshot(err.message), "rate_limited");
 			}
-			return this.staleOr(this.errorToSnapshot(err));
+			return this.staleOr(this.errorToSnapshot(err), "error");
 		}
 	}
 
-	/** Return the last good snapshot marked stale, or the given fallback if none exists. */
-	private staleOr(fallback: UsageSnapshot): UsageSnapshot {
+	/**
+	 * Return the last good snapshot marked stale (with the failure reason), or the given
+	 * fallback if there is no cached value yet.
+	 */
+	private staleOr(fallback: UsageSnapshot, reason: "rate_limited" | "error"): UsageSnapshot {
 		if (this.last !== null) {
 			return {
 				...this.last,
 				status: "stale",
 				stale: true,
+				staleReason: reason,
 				updatedAt: new Date(this.now()).toISOString(),
 			};
 		}

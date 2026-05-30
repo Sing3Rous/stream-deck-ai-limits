@@ -37,10 +37,11 @@ export function toDataUrl(svg: string): string {
 
 function renderBars(snapshot: UsageSnapshot): string {
 	const palette = paletteForStatus(snapshot.status);
-	const staleMarker =
-		snapshot.status === "stale"
-			? `<text x="${SIZE - 10}" y="${SIZE - 8}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="${palette.textMuted}">STALE</text>`
-			: "";
+	const markerText =
+		snapshot.status === "stale" ? (snapshot.staleReason === "rate_limited" ? "RATE LIM" : "STALE") : "";
+	const staleMarker = markerText
+		? `<text x="${SIZE - 10}" y="${SIZE - 8}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="${palette.textMuted}">${markerText}</text>`
+		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   <rect width="${SIZE}" height="${SIZE}" fill="${palette.background}"/>

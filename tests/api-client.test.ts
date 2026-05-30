@@ -65,6 +65,16 @@ test("429 maps to rate_limited", async () => {
 	});
 });
 
+test("429 parses Retry-After (seconds) into retryAfterMs", async () => {
+	const resWithRetry = () => new Response("{}", { status: 429, headers: { "Retry-After": "72" } });
+	await withFetch(resWithRetry, async () => {
+		await assert.rejects(
+			() => fetchClaudeUsage("FAKE"),
+			(err: unknown) => isUsageError(err) && err.status === "rate_limited" && err.retryAfterMs === 72_000,
+		);
+	});
+});
+
 test("403 maps to auth_required", async () => {
 	await withFetch(() => jsonResponse(403, {}), async () => {
 		await assert.rejects(

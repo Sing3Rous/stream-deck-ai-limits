@@ -14,11 +14,14 @@ export type ErrorStatus = Extract<UsageStatus, "auth_required" | "rate_limited" 
  */
 export class UsageError extends Error {
 	readonly status: ErrorStatus;
+	/** For `rate_limited`: how long to back off, derived from the server's `Retry-After`. */
+	readonly retryAfterMs?: number;
 
-	constructor(status: ErrorStatus, message: string) {
+	constructor(status: ErrorStatus, message: string, retryAfterMs?: number) {
 		super(message);
 		this.name = "UsageError";
 		this.status = status;
+		this.retryAfterMs = retryAfterMs;
 	}
 }
 
@@ -26,8 +29,8 @@ export function authRequired(message: string): UsageError {
 	return new UsageError("auth_required", message);
 }
 
-export function rateLimited(message: string): UsageError {
-	return new UsageError("rate_limited", message);
+export function rateLimited(message: string, retryAfterMs?: number): UsageError {
+	return new UsageError("rate_limited", message, retryAfterMs);
 }
 
 export function genericError(message: string): UsageError {

@@ -61,7 +61,7 @@ export async function fetchClaudeUsage(accessToken: string): Promise<ClaudeUsage
 		throw authRequired("Claude usage request was forbidden. Log in with Claude Code again.");
 	}
 	if (response.status === 429) {
-		throw rateLimited("Claude usage rate limit reached.");
+		throw rateLimited("Claude usage rate limit reached.", parseRetryAfterMs(response.headers.get("retry-after")));
 	}
 	if (!response.ok) {
 		throw genericError(`Claude usage request failed (HTTP ${response.status}).`);
@@ -72,4 +72,19 @@ export async function fetchClaudeUsage(accessToken: string): Promise<ClaudeUsage
 	} catch {
 		throw genericError("Claude usage response was not valid JSON.");
 	}
+}
+
+/**
+ * Parse a `Retry-After` header into milliseconds. Supports the delta-seconds form (e.g. "72").
+ * Returns `undefined` when absent or unparseable.
+ */
+function parseRetryAfterMs(headerValue: string | null): number | undefined {
+	if (!headerValue) {
+		return undefined;
+	}
+	const seconds = Number(headerValue.trim());
+	if (Number.isFinite(seconds) && seconds >= 0) {
+		return seconds * 1000;
+	}
+	return undefined;
 }

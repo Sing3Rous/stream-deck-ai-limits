@@ -158,3 +158,78 @@ test("429 with no prior snapshot returns a rate_limited snapshot", async () => {
 	});
 	assert.equal(result.status, "rate_limited");
 });
+
+test("stale after a 429 is tagged with staleReason 'rate_limited'", async () => {
+	const c = clock();
+	const cache = new UsageCache({ provider: "claude", now: c.now });
+	await cache.get(async () => okSnapshot(60));
+	c.advance(DEFAULT_TTL_MS + 1);
+	const stale = await cache.get(async () => {
+		throw rateLimited("429");
+	});
+	assert.equal(stale.status, "stale");
+	assert.equal(stale.staleReason, "rate_limited");
+});
+
+test("stale after a generic error is tagged with staleReason 'error'", async () => {
+	const c = clock();
+	const cache = new UsageCache({ provider: "claude", now: c.now });
+	await cache.get(async () => okSnapshot(60));
+	c.advance(DEFAULT_TTL_MS + 1);
+	const stale = await cache.get(async () => {
+		throw genericError("down");
+	});
+	assert.equal(stale.staleReason, "error");
+});
+
+test("honors Retry-After: backoff ends after the server-specified delay", async () => {
+	const c = clock();
+	// Big default backoff so we can prove Retry-After (shorter) is what's used.
+	const cache = new UsageCache({ provider: "claude", now: c.now, rateLimitBackoffMs: 600_000 });
+	await cache.get(async () => okSnapshot(60));
+	c.advance(DEFAULT_TTL_MS + 1);
+
+	let calls = 0;
+	await cache.get(async () => {
+		calls++;
+		throw rateLimited("429", 72_000); // server says retry in 72s
+	});
+	assert.equal(calls, 1);
+
+	// Before 72s → still backed off (forced) → no network.
+	c.advance(60_000);
+	await cache.get(async () => {
+		calls++;
+		return okSnapshot(70);
+	}, { force: true });
+	assert.equal(calls, 1, "still within Retry-After window");
+
+	// After 72s → fetches again.
+	c.advance(13_000);
+	const after = await cache.get(async () => {
+		calls++;
+		return okSnapshot(70);
+	});
+	assert.equal(calls, 2);
+	assert.equal(after.session.usedPercent, 70);
+});
+
+test("Retry-After is clamped to a 15s floor", async () => {
+	const c = clock();
+	const cache = new UsageCache({ provider: "claude", now: c.now });
+	await cache.get(async () => okSnapshot(60));
+	c.advance(DEFAULT_TTL_MS + 1);
+
+	let calls = 0;
+	await cache.get(async () => {
+		calls++;
+		throw rateLimited("429", 1_000); // absurdly short → must be floored to 15s
+	});
+	// At +10s (under the 15s floor) → still backed off.
+	c.advance(10_000);
+	await cache.get(async () => {
+		calls++;
+		return okSnapshot(70);
+	}, { force: true });
+	assert.equal(calls, 1, "floored backoff still active at 10s");
+});
