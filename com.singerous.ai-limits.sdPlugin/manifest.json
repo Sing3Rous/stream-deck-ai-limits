@@ -55,7 +55,7 @@
 	"Category": "Claude & Codex Usage",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
-	"Description": "Show Claude Code and Codex usage limits on Elgato Stream Deck.",
+	"Description": "Show Claude Code and Codex CLI usage limits (5-hour and weekly) on your keys.",
 	"Icon": "imgs/plugin/marketplace",
 	"SDKVersion": 3,
 	"Software": {
