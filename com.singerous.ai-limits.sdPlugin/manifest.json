@@ -1,5 +1,5 @@
 {
-	"Name": "AI Limits",
+	"Name": "Claude & Codex Usage",
 	"Version": "0.1.0.0",
 	"Author": "singerous",
 	"Actions": [
@@ -52,7 +52,7 @@
 			]
 		}
 	],
-	"Category": "AI Limits",
+	"Category": "Claude & Codex Usage",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Description": "Show Claude Code and Codex usage limits on Elgato Stream Deck.",

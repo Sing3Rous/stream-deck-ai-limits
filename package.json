@@ -1,4 +1,25 @@
 {
+    "name": "stream-deck-ai-limits",
+    "version": "0.1.0",
+    "description": "Elgato Stream Deck plugin that shows Claude Code and Codex CLI usage limits (5-hour and weekly) on your keys.",
+    "keywords": [
+        "stream-deck",
+        "elgato",
+        "claude",
+        "claude-code",
+        "codex",
+        "usage",
+        "rate-limit"
+    ],
+    "homepage": "https://github.com/Sing3Rous/stream-deck-ai-limits#readme",
+    "bugs": {
+        "url": "https://github.com/Sing3Rous/stream-deck-ai-limits/issues"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Sing3Rous/stream-deck-ai-limits.git"
+    },
+    "license": "MIT",
     "scripts": {
         "build": "rollup -c",
         "watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.singerous.ai-limits\"",
