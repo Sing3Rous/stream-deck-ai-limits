@@ -1,26 +1,58 @@
 {
-	"Name": "AI Limits",
+	"Name": "Claude & Codex Usage",
 	"Version": "0.1.0.0",
 	"Author": "singerous",
 	"Actions": [
 		{
-			"Name": "Counter",
-			"UUID": "com.singerous.ai-limits.increment",
-			"Icon": "imgs/actions/counter/icon",
-			"Tooltip": "Displays a count, which increments by one on press.",
-			"PropertyInspectorPath": "ui/increment-counter.html",
+			"Name": "Claude Usage",
+			"UUID": "com.singerous.ai-limits.claude-usage",
+			"Icon": "imgs/actions/claude/icon",
+			"Tooltip": "Show Claude Code 5-hour and weekly usage limits.",
+			"PropertyInspectorPath": "ui/claude.html",
 			"Controllers": [
 				"Keypad"
 			],
 			"States": [
 				{
-					"Image": "imgs/actions/counter/key",
+					"Image": "imgs/actions/claude/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
+			"Name": "Codex Usage",
+			"UUID": "com.singerous.ai-limits.codex-usage",
+			"Icon": "imgs/actions/codex/icon",
+			"Tooltip": "Show Codex CLI 5-hour and weekly usage limits.",
+			"PropertyInspectorPath": "ui/codex.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/codex/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
+			"Name": "Usage (single window)",
+			"UUID": "com.singerous.ai-limits.usage-single",
+			"Icon": "imgs/actions/single/icon",
+			"Tooltip": "Show one usage window (Claude/Codex, 5H/7D) with reset time.",
+			"PropertyInspectorPath": "ui/single.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/single/key",
 					"TitleAlignment": "middle"
 				}
 			]
 		}
 	],
-	"Category": "AI Limits",
+	"Category": "Claude & Codex Usage",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Description": "Show Claude Code and Codex usage limits on Elgato Stream Deck.",
@@ -40,7 +72,7 @@
 		}
 	],
 	"Nodejs": {
-		"Version": "24",
+		"Version": "20",
 		"Debug": "enabled"
 	},
 	"UUID": "com.singerous.ai-limits"

@@ -1,12 +1,17 @@
 import streamDeck from "@elgato/streamdeck";
 
-import { IncrementCounter } from "./actions/increment-counter";
+import { ClaudeUsageAction } from "./actions/claude-usage-action.ts";
+import { CodexUsageAction } from "./actions/codex-usage-action.ts";
+import { SingleWindowAction } from "./actions/single-window-action.ts";
 
-// We can enable "trace" logging so that all messages between the Stream Deck, and the plugin are recorded. When storing sensitive information
-streamDeck.logger.setLevel("trace");
+// INFO level avoids logging the full Stream Deck message traffic. This plugin handles OAuth
+// tokens, so trace-level logging (which records all messages) must never be enabled.
+streamDeck.logger.setLevel("info");
 
-// Register the increment action.
-streamDeck.actions.registerAction(new IncrementCounter());
+// Register the usage actions.
+streamDeck.actions.registerAction(new ClaudeUsageAction());
+streamDeck.actions.registerAction(new CodexUsageAction());
+streamDeck.actions.registerAction(new SingleWindowAction());
 
 // Finally, connect to the Stream Deck.
 streamDeck.connect();

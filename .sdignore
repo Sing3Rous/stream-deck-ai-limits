@@ -2,3 +2,11 @@ logs/
 *.log
 .DS_Store
 Thumbs.db
+
+# Secrets — never package credentials, even if present locally
+**/.credentials.json
+**/auth.json
+.env
+.env.*
+*.pem
+*.key

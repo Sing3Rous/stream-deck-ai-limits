@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+	<head lang="en">
+		<meta charset="utf-8" />
+		<title>Claude Usage Settings</title>
+		<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+	</head>
+	<body>
+		<!--
+			Settings auto-persist to the action via the `setting` attribute and apply live in the
+			plugin (onDidReceiveSettings). Components: https://sdpi-components.dev/docs/components
+		-->
+		<sdpi-item label="Refresh interval (sec)">
+			<sdpi-range setting="refreshIntervalSec" min="60" max="600" step="5" default="120" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Warning at (%)">
+			<sdpi-range setting="warningThreshold" min="0" max="100" step="5" default="70" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Critical at (%)">
+			<sdpi-range setting="criticalThreshold" min="0" max="100" step="5" default="90" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Credentials path">
+			<sdpi-textfield
+				setting="customCredentialsPath"
+				placeholder="Default: ~/.claude/.credentials.json"
+			></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item>
+			<small style="color: var(--sdpi-color-muted, #999);">
+				Leave the path empty to use the default Claude Code credentials location.
+			</small>
+		</sdpi-item>
+	</body>
+</html>
