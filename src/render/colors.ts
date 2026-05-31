@@ -53,3 +53,10 @@ export function paletteForStatus(status: UsageStatus): Palette {
 		accent: ACCENT[status],
 	};
 }
+
+/** Brand colors per provider: a bright accent (frame) and a tinted background fill. */
+export function providerColors(provider: "claude" | "codex"): { accent: string; tint: string } {
+	return provider === "codex"
+		? { accent: "#10a37f", tint: "#173d34" } // teal
+		: { accent: "#d97757", tint: "#46291f" }; // Claude orange
+}

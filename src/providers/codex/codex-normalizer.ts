@@ -42,5 +42,6 @@ export function normalizeCodexUsage(
 		status: worstStatus(session, weekly, thresholds),
 		updatedAt: now.toISOString(),
 		stale: false,
+		thresholds,
 	};
 }

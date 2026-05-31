@@ -1,4 +1,4 @@
-import { isUsageError } from "../utils/errors.ts";
+import { genericError, isUsageError } from "../utils/errors.ts";
 import type { UsageProvider, UsageSnapshot } from "../providers/types.ts";
 
 /** Default cache TTL and timer interval (see project decision: 60s default, 15s floor). */
@@ -61,6 +61,8 @@ export class UsageCache {
 
 	private last: UsageSnapshot | null = null;
 	private lastFetchedAt = 0;
+	/** Timestamp of the last fetch *attempt* (success OR failure) — gates the force throttle. */
+	private lastAttemptAt = 0;
 	private inFlight: Promise<UsageSnapshot> | null = null;
 	private rateLimitedUntil = 0;
 
@@ -87,10 +89,12 @@ export class UsageCache {
 			return this.last as UsageSnapshot;
 		}
 
-		// Forced (key press) but we fetched very recently → re-serve cache without a network
-		// call. Throttles rapid presses so the user can't spam the endpoint into a rate-limit.
-		if (options.force && this.last !== null && age < this.forceMinIntervalMs) {
-			return this.last;
+		// Forced (key press) but we *attempted* a fetch very recently → re-serve whatever we have
+		// (good or stale) without a network call. Gated on the last ATTEMPT, not the last success,
+		// so spamming the key while the endpoint is unhealthy can't keep hammering it (which would
+		// otherwise re-trigger the rate limit and pin the key on stale).
+		if (options.force && now - this.lastAttemptAt < this.forceMinIntervalMs) {
+			return this.last ?? this.staleOr(this.errorToSnapshot(genericError("No data yet.")), "error");
 		}
 
 		// Under rate-limit backoff → never hit the network, even on force. Serve stale if we can.
@@ -112,6 +116,7 @@ export class UsageCache {
 	}
 
 	private async runFetch(fetcher: SnapshotFetcher): Promise<UsageSnapshot> {
+		this.lastAttemptAt = this.now();
 		try {
 			const snapshot = await fetcher();
 			this.last = snapshot;
@@ -173,4 +178,24 @@ export class UsageCache {
 			stale: false,
 		};
 	}
+}
+
+/**
+ * Process-wide cache registry, keyed by provider + interval.
+ *
+ * All keys for the same provider/interval share ONE cache so that the last-good snapshot and the
+ * 429 backoff persist across key presses, timer ticks, and (critically) tab/folder switches —
+ * `onWillAppear` no longer starts from an empty cache and re-hits the endpoint. Several keys also
+ * can't multiply network calls (the cache dedupes).
+ */
+const sharedCaches = new Map<string, UsageCache>();
+
+export function getSharedCache(provider: UsageProvider, ttlMs: number): UsageCache {
+	const key = `${provider}:${ttlMs}`;
+	let cache = sharedCaches.get(key);
+	if (!cache) {
+		cache = new UsageCache({ provider, ttlMs });
+		sharedCaches.set(key, cache);
+	}
+	return cache;
 }

@@ -21,6 +21,9 @@ function fills(svg: string): string[] {
 	return [...svg.matchAll(/fill="(#[0-9a-fA-F]{6})"/g)].map((m) => m[1]);
 }
 
+const GREEN = "#34c759"; // ok
+const RED = "#ff453a"; // limited
+
 test("bars layout: shows both window percentages", () => {
 	const svg = renderUsageIcon(snapshot({ session: { usedPercent: 73, resetAt: null }, weekly: { usedPercent: 44, resetAt: null } }));
 	assert.match(svg, /<svg[\s\S]*<\/svg>/);
@@ -47,6 +50,56 @@ test("status bands produce distinct accent colors", () => {
 	assert.ok(colors.size >= 4, `expected >=4 distinct colors, got ${colors.size}: ${[...colors].join(",")}`);
 });
 
+test("each bar is colored by its OWN percentage (not the worst overall)", () => {
+	// session low (ok→green), weekly maxed (limited→red). Both colors must appear.
+	const svg = renderUsageIcon(
+		snapshot({
+			session: { usedPercent: 5, resetAt: null },
+			weekly: { usedPercent: 100, resetAt: null },
+			status: "limited", // overall worst
+		}),
+	);
+	const present = fills(svg);
+	assert.ok(present.includes(GREEN), `expected a green (ok) bar for 5%, got: ${present.join(",")}`);
+	assert.ok(present.includes(RED), `expected a red (limited) bar for 100%, got: ${present.join(",")}`);
+});
+
+test("per-bar colors respect custom thresholds carried on the snapshot", () => {
+	// With warning=10/critical=20, a 15% bar should be warning (yellow), a 5% bar ok (green).
+	const svg = renderUsageIcon(
+		snapshot({
+			session: { usedPercent: 5, resetAt: null },
+			weekly: { usedPercent: 15, resetAt: null },
+			status: "warning",
+			thresholds: { warning: 10, critical: 20 },
+		}),
+	);
+	const present = fills(svg);
+	assert.ok(present.includes(GREEN), "5% under custom warning=10 → green");
+	assert.ok(present.includes("#ffd60a"), "15% at custom warning=10 → yellow");
+});
+
+test("stale shows real per-bar colors (not dimmed) with only a subtle dot", () => {
+	const svg = renderUsageIcon(
+		snapshot({
+			session: { usedPercent: 5, resetAt: null },
+			weekly: { usedPercent: 100, resetAt: null },
+			status: "stale",
+			stale: true,
+			staleReason: "rate_limited",
+		}),
+	);
+	// Numbers stay, colored by their own percentage — looks like live data.
+	assert.match(svg, /5%/);
+	assert.match(svg, /100%/);
+	assert.ok(fills(svg).includes(GREEN), "5% bar still green when stale");
+	assert.ok(fills(svg).includes(RED), "100% bar still red when stale");
+	// A small dot hints staleness; no big alarming text.
+	assert.match(svg, /<circle/);
+	assert.doesNotMatch(svg, /RATE LIM/);
+	assert.doesNotMatch(svg, /STALE/);
+});
+
 test("auth_required renders a Login Required message, not bars", () => {
 	const svg = renderUsageIcon(snapshot({ status: "auth_required", session: { usedPercent: null, resetAt: null }, weekly: { usedPercent: null, resetAt: null } }));
 	assert.match(svg, /Login/);
@@ -65,10 +118,11 @@ test("error renders an Error message", () => {
 	assert.match(svg, /Error/);
 });
 
-test("stale keeps the numbers and adds a STALE marker", () => {
+test("stale keeps the numbers and adds only a subtle dot", () => {
 	const svg = renderUsageIcon(snapshot({ status: "stale", stale: true }));
 	assert.match(svg, /73%/);
-	assert.match(svg, /STALE/);
+	assert.match(svg, /<circle/);
+	assert.doesNotMatch(svg, /STALE/);
 });
 
 test("missing values render an em dash instead of a percentage", () => {

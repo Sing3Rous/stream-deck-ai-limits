@@ -20,9 +20,10 @@ test("empty settings → all defaults", () => {
 
 test("interval is clamped to [MIN, MAX] and rounded", () => {
 	assert.equal(resolveUsageSettings({ refreshIntervalSec: 5 }).intervalSec, MIN_INTERVAL_SEC);
+	assert.equal(resolveUsageSettings({ refreshIntervalSec: 30 }).intervalSec, MIN_INTERVAL_SEC); // below floor
 	assert.equal(resolveUsageSettings({ refreshIntervalSec: 99999 }).intervalSec, MAX_INTERVAL_SEC);
-	assert.equal(resolveUsageSettings({ refreshIntervalSec: 62.7 }).intervalSec, 63);
-	assert.equal(resolveUsageSettings({ refreshIntervalSec: 30 }).intervalSec, 30);
+	assert.equal(resolveUsageSettings({ refreshIntervalSec: 122.7 }).intervalSec, 123);
+	assert.equal(resolveUsageSettings({ refreshIntervalSec: 90 }).intervalSec, 90);
 });
 
 test("invalid interval → default", () => {
@@ -53,12 +54,12 @@ test("custom credentials path is trimmed; blank → undefined", () => {
 
 test("valid full settings pass through", () => {
 	const r = resolveUsageSettings({
-		refreshIntervalSec: 45,
+		refreshIntervalSec: 90,
 		warningThreshold: 60,
 		criticalThreshold: 85,
 		customCredentialsPath: "/home/u/.claude/.credentials.json",
 	});
-	assert.equal(r.intervalSec, 45);
+	assert.equal(r.intervalSec, 90);
 	assert.equal(r.thresholds.warning, 60);
 	assert.equal(r.thresholds.critical, 85);
 	assert.equal(r.customCredentialsPath, "/home/u/.claude/.credentials.json");

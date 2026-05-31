@@ -34,6 +34,22 @@
 					"TitleAlignment": "middle"
 				}
 			]
+		},
+		{
+			"Name": "Usage (single window)",
+			"UUID": "com.singerous.ai-limits.usage-single",
+			"Icon": "imgs/actions/single/icon",
+			"Tooltip": "Show one usage window (Claude/Codex, 5H/7D) with reset time.",
+			"PropertyInspectorPath": "ui/single.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/single/key",
+					"TitleAlignment": "middle"
+				}
+			]
 		}
 	],
 	"Category": "AI Limits",

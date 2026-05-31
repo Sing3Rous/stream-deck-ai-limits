@@ -1,6 +1,6 @@
 import { action } from "@elgato/streamdeck";
 
-import { UsageCache } from "../cache/ttl-cache.ts";
+import { getSharedCache } from "../cache/ttl-cache.ts";
 import { ClaudeProvider } from "../providers/claude/claude-provider.ts";
 import type { Provider, UsageProvider } from "../providers/types.ts";
 import type { ResolvedUsageSettings } from "../settings/usage-settings.ts";
@@ -14,7 +14,8 @@ export class ClaudeUsageAction extends UsageActionBase {
 
 	protected createProvider(config: ResolvedUsageSettings): Provider {
 		return new ClaudeProvider({
-			cache: new UsageCache({ provider: "claude", ttlMs: config.intervalSec * 1000 }),
+			// Shared per provider+interval so backoff/last-good persist across tab switches.
+			cache: getSharedCache("claude", config.intervalSec * 1000),
 			thresholds: config.thresholds,
 			customCredentialsPath: config.customCredentialsPath,
 			logger,

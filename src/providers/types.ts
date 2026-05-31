@@ -53,6 +53,11 @@ export interface UsageSnapshot {
 	staleReason?: "rate_limited" | "error";
 	/** Human-readable, secret-free error detail for diagnostics. */
 	errorMessage?: string;
+	/**
+	 * Thresholds used to compute statuses, so the renderer can color each bar by its own
+	 * percentage. Defaults to {@link DEFAULT_THRESHOLDS} when absent.
+	 */
+	thresholds?: StatusThresholds;
 }
 
 /**

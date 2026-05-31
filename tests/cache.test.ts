@@ -6,6 +6,7 @@ import {
 	DEFAULT_TTL_MS,
 	DEFAULT_FORCE_MIN_INTERVAL_MS,
 	MIN_RATE_LIMIT_BACKOFF_MS,
+	getSharedCache,
 } from "../src/cache/ttl-cache.ts";
 import { rateLimited, genericError } from "../src/utils/errors.ts";
 import type { UsageSnapshot } from "../src/providers/types.ts";
@@ -268,4 +269,58 @@ test("Retry-After=0 is NOT trusted: applies the minimum backoff to avoid a 429 l
 	});
 	assert.equal(calls, 2);
 	assert.equal(after.session.usedPercent, 70);
+});
+
+test("getSharedCache returns the same instance per provider+interval", () => {
+	const a = getSharedCache("claude", 60_000);
+	const b = getSharedCache("claude", 60_000);
+	assert.equal(a, b, "same provider+interval → same cache instance");
+
+	const codex = getSharedCache("codex", 60_000);
+	assert.notEqual(a, codex, "different provider → different cache");
+
+	const other = getSharedCache("claude", 30_000);
+	assert.notEqual(a, other, "different interval → different cache");
+});
+
+test("shared cache retains last-good (the basis for surviving a tab switch)", async () => {
+	// The shared instance is reused across key appearances, so its last good snapshot persists —
+	// that's what lets a later 429 fall back to STALE instead of the big rate_limited screen.
+	// (The stale-on-429 behavior itself is covered above with an injected clock.)
+	const cache = getSharedCache("claude", 13579); // unique interval → isolated instance
+	await cache.get(async () => okSnapshot(77));
+	assert.equal(cache.lastSnapshot?.session.usedPercent, 77);
+
+	// A second appearance grabs the SAME instance, which already holds the good snapshot.
+	const again = getSharedCache("claude", 13579);
+	assert.equal(again.lastSnapshot?.session.usedPercent, 77);
+});
+
+test("force throttle gates on last ATTEMPT, not last success (failed fetch then spam)", async () => {
+	const c = clock();
+	// Long backoff so the rate-limit path doesn't interfere; we test the force throttle itself.
+	const cache = new UsageCache({ provider: "claude", now: c.now });
+
+	let calls = 0;
+	// First attempt fails (no good snapshot yet).
+	await cache.get(async () => {
+		calls++;
+		throw genericError("boom");
+	});
+	assert.equal(calls, 1);
+
+	// Rapid forced presses within the throttle window must NOT hit the network again, even
+	// though there was no *successful* fetch to anchor on.
+	c.advance(2_000);
+	await cache.get(async () => {
+		calls++;
+		return okSnapshot(50);
+	}, { force: true });
+	c.advance(2_000);
+	await cache.get(async () => {
+		calls++;
+		return okSnapshot(50);
+	}, { force: true });
+
+	assert.equal(calls, 1, "spamming after a failed fetch does not re-hit the endpoint");
 });

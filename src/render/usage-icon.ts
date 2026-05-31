@@ -1,8 +1,10 @@
-import type { UsageSnapshot, UsageStatus, UsageWindow } from "../providers/types.ts";
+import { statusForPercent } from "../providers/status.ts";
+import type { StatusThresholds, UsageSnapshot, UsageStatus, UsageWindow } from "../providers/types.ts";
+import { DEFAULT_THRESHOLDS } from "../providers/types.ts";
 import { paletteForStatus } from "./colors.ts";
+import { SIZE, escapeXml, toDataUrl } from "./svg.ts";
 
-/** Canvas size. 144x144 is the Stream Deck high-DPI key size; SVG scales to any device. */
-const SIZE = 144;
+export { toDataUrl };
 
 /**
  * Render a usage snapshot to an SVG string.
@@ -36,26 +38,37 @@ function providerLabel(provider: UsageSnapshot["provider"]): string {
 	return provider === "codex" ? "Codex" : "Claude";
 }
 
-/** Encode an SVG string as a data URL accepted by `KeyAction.setImage`. */
-export function toDataUrl(svg: string): string {
-	return `data:image/svg+xml;base64,${Buffer.from(svg, "utf-8").toString("base64")}`;
-}
-
 function renderBars(snapshot: UsageSnapshot): string {
-	const palette = paletteForStatus(snapshot.status);
-	const markerText =
-		snapshot.status === "stale" ? (snapshot.staleReason === "rate_limited" ? "RATE LIM" : "STALE") : "";
-	const staleMarker = markerText
-		? `<text x="${SIZE - 10}" y="${SIZE - 8}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="${palette.textMuted}">${markerText}</text>`
+	const thresholds = snapshot.thresholds ?? DEFAULT_THRESHOLDS;
+	const stale = snapshot.status === "stale";
+
+	// Stale data still shows real numbers with normal per-bar colors (the values are the
+	// last-known-good ones) — only a tiny corner dot hints that a refresh is pending. This keeps
+	// transient rate-limit windows from turning the whole key an alarming grey. We use the normal
+	// (non-stale) palette for text/background so it reads as live data.
+	const palette = paletteForStatus("ok");
+	const sessionAccent = accentForWindow(snapshot.session, thresholds);
+	const weeklyAccent = accentForWindow(snapshot.weekly, thresholds);
+
+	const staleDot = stale
+		? `<circle cx="${SIZE - 9}" cy="9" r="3" fill="${palette.textMuted}"><title>data is stale (refresh pending)</title></circle>`
 		: "";
 
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   <rect width="${SIZE}" height="${SIZE}" fill="${palette.background}"/>
-  ${barRow(8, "5H", snapshot.session, palette.text, palette.track, palette.accent)}
+  ${barRow(8, "5H", snapshot.session, palette.text, palette.track, sessionAccent)}
   <line x1="12" y1="72" x2="${SIZE - 12}" y2="72" stroke="${palette.track}" stroke-width="1"/>
-  ${barRow(80, "W", snapshot.weekly, palette.text, palette.track, palette.accent)}
-  ${staleMarker}
+  ${barRow(80, "W", snapshot.weekly, palette.text, palette.track, weeklyAccent)}
+  ${staleDot}
 </svg>`;
+}
+
+/** Accent color for one bar, derived from its own percentage and the configured thresholds. */
+function accentForWindow(window: UsageWindow, thresholds: StatusThresholds): string {
+	if (window.usedPercent === null) {
+		return paletteForStatus("ok").accent;
+	}
+	return paletteForStatus(statusForPercent(window.usedPercent, thresholds)).accent;
 }
 
 function barRow(
@@ -105,13 +118,4 @@ function messageLines(status: UsageStatus, label: string): string[] {
 		default:
 			return [label, "Error"];
 	}
-}
-
-function escapeXml(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;")
-		.replace(/"/g, "&quot;")
-		.replace(/'/g, "&apos;");
 }

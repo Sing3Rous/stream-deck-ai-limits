@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+	<head lang="en">
+		<meta charset="utf-8" />
+		<title>Usage (single window) Settings</title>
+		<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+	</head>
+	<body>
+		<!--
+			Settings auto-persist via the `setting` attribute and apply live (onDidReceiveSettings).
+			Components: https://sdpi-components.dev/docs/components
+		-->
+		<sdpi-item label="Provider">
+			<sdpi-select setting="provider" default="claude">
+				<option value="claude">Claude</option>
+				<option value="codex">Codex</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Window">
+			<sdpi-select setting="window" default="session">
+				<option value="session">5-hour</option>
+				<option value="weekly">7-day (weekly)</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Reset info">
+			<sdpi-select setting="resetDisplay" default="datetime">
+				<option value="datetime">Date & time</option>
+				<option value="countdown">Countdown</option>
+				<option value="both">Both</option>
+				<option value="none">Hidden</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Date format">
+			<sdpi-select setting="dateFormat" default="day-month">
+				<option value="day-month">31 May, 14:06</option>
+				<option value="iso-short">05/31 14:06</option>
+				<option value="weekday">Sat 14:06</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Provider accent">
+			<sdpi-select setting="providerAccent" default="frame">
+				<option value="frame">Colored frame</option>
+				<option value="tint">Tinted background</option>
+				<option value="none">None</option>
+			</sdpi-select>
+		</sdpi-item>
+
+		<sdpi-item label="Refresh interval (sec)">
+			<sdpi-range setting="refreshIntervalSec" min="60" max="600" step="5" default="120" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Warning at (%)">
+			<sdpi-range setting="warningThreshold" min="0" max="100" step="5" default="70" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Critical at (%)">
+			<sdpi-range setting="criticalThreshold" min="0" max="100" step="5" default="90" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Credentials path">
+			<sdpi-textfield setting="customCredentialsPath" placeholder="Default per provider"></sdpi-textfield>
+		</sdpi-item>
+	</body>
+</html>
