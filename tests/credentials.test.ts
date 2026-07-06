@@ -6,7 +6,9 @@ import path from "node:path";
 
 import {
 	readClaudeCredentials,
+	readClaudeCredentialsFromKeychain,
 	isExpired,
+	CLAUDE_KEYCHAIN_SERVICE,
 	DEFAULT_EXPIRY_SKEW_MS,
 } from "../src/providers/claude/claude-credentials.ts";
 import { resolveClaudeCredentialsPath } from "../src/utils/paths.ts";
@@ -110,4 +112,125 @@ test("resolveClaudeCredentialsPath: blank override falls back to default", () =>
 test("resolveClaudeCredentialsPath: custom absolute path is honored", () => {
 	const custom = path.join(os.tmpdir(), "custom", "creds.json");
 	assert.equal(resolveClaudeCredentialsPath(custom), path.resolve(custom));
+});
+
+const VALID_KEYCHAIN_BLOB = JSON.stringify({
+	claudeAiOauth: {
+		accessToken: "FAKE_ACCESS_TOKEN_synthetic_value_for_tests",
+		refreshToken: "FAKE_REFRESH_TOKEN_synthetic_value_for_tests",
+		expiresAt: 7258118400000,
+	},
+});
+
+test("keychain: reads a valid Keychain item", async () => {
+	const creds = await readClaudeCredentialsFromKeychain(async (service) => {
+		assert.equal(service, CLAUDE_KEYCHAIN_SERVICE);
+		return VALID_KEYCHAIN_BLOB;
+	});
+	assert.equal(creds.accessToken, "FAKE_ACCESS_TOKEN_synthetic_value_for_tests");
+	assert.equal(creds.refreshToken, "FAKE_REFRESH_TOKEN_synthetic_value_for_tests");
+	assert.equal(creds.expiresAt, 7258118400000);
+});
+
+test("keychain: missing item → auth_required, message has no token", async () => {
+	await assert.rejects(
+		() =>
+			readClaudeCredentialsFromKeychain(async () => {
+				throw new Error("Keychain lookup failed.");
+			}),
+		(err: unknown) => {
+			assert.ok(isUsageError(err));
+			assert.equal(err.status, "auth_required");
+			assert.doesNotMatch(err.message, /FAKE_|eyJ|Bearer/);
+			return true;
+		},
+	);
+});
+
+test("keychain: malformed item → auth_required, no leak", async () => {
+	await assert.rejects(
+		() => readClaudeCredentialsFromKeychain(async () => "{ SECRET_LEAK_CANARY_123 not json"),
+		(err: unknown) => {
+			assert.ok(isUsageError(err));
+			assert.equal(err.status, "auth_required");
+			assert.doesNotMatch(err.message, /SECRET_LEAK_CANARY_123/);
+			return true;
+		},
+	);
+});
+
+test("keychain: item without an access token → auth_required", async () => {
+	await assert.rejects(
+		() =>
+			readClaudeCredentialsFromKeychain(async () =>
+				JSON.stringify({ claudeAiOauth: { refreshToken: "x" } }),
+			),
+		(err: unknown) => isUsageError(err) && err.status === "auth_required",
+	);
+});
+
+/** Run `fn` with `$HOME` pointed at an empty temp dir, so the default credentials path is absent. */
+async function withEmptyHome(fn: () => Promise<void>): Promise<void> {
+	const dir = await mkdtemp(path.join(os.tmpdir(), "sdai-home-"));
+	const savedHome = process.env.HOME;
+	const savedUserProfile = process.env.USERPROFILE;
+	process.env.HOME = dir;
+	process.env.USERPROFILE = dir; // os.homedir() on Windows
+	try {
+		await fn();
+	} finally {
+		if (savedHome === undefined) delete process.env.HOME;
+		else process.env.HOME = savedHome;
+		if (savedUserProfile === undefined) delete process.env.USERPROFILE;
+		else process.env.USERPROFILE = savedUserProfile;
+		await rm(dir, { recursive: true, force: true });
+	}
+}
+
+test("darwin fallback: missing default file falls back to the Keychain", async () => {
+	await withEmptyHome(async () => {
+		let keychainCalls = 0;
+		const creds = await readClaudeCredentials(undefined, {
+			platform: "darwin",
+			keychainReader: async () => {
+				keychainCalls += 1;
+				return {
+					accessToken: "FAKE_ACCESS_TOKEN_synthetic_value_for_tests",
+					refreshToken: null,
+					expiresAt: null,
+				};
+			},
+		});
+		assert.equal(keychainCalls, 1);
+		assert.equal(creds.accessToken, "FAKE_ACCESS_TOKEN_synthetic_value_for_tests");
+	});
+});
+
+test("darwin fallback: custom path set → no Keychain fallback, missing file stays an error", async () => {
+	let keychainCalls = 0;
+	const fake = async () => {
+		keychainCalls += 1;
+		return { accessToken: "x", refreshToken: null, expiresAt: null };
+	};
+	const missing = path.join(os.tmpdir(), "definitely-not-here-12345", ".credentials.json");
+	await assert.rejects(
+		() => readClaudeCredentials(missing, { platform: "darwin", keychainReader: fake }),
+		(err: unknown) => isUsageError(err) && err.status === "auth_required",
+	);
+	assert.equal(keychainCalls, 0);
+});
+
+test("darwin fallback: non-darwin platforms never consult the Keychain", async () => {
+	await withEmptyHome(async () => {
+		let keychainCalls = 0;
+		const fake = async () => {
+			keychainCalls += 1;
+			return { accessToken: "x", refreshToken: null, expiresAt: null };
+		};
+		await assert.rejects(
+			() => readClaudeCredentials(undefined, { platform: "linux", keychainReader: fake }),
+			(err: unknown) => isUsageError(err) && err.status === "auth_required",
+		);
+		assert.equal(keychainCalls, 0);
+	});
 });

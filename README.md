@@ -29,8 +29,10 @@ Color bands (configurable): `0–69%` green · `70–89%` yellow · `90–99%` o
 ## Requirements
 
 - **Elgato Stream Deck** app 6.5+ (Windows 10+ or macOS 12+).
-- For Claude usage: **[Claude Code](https://www.anthropic.com/claude-code)** installed and logged in
-  (`~/.claude/.credentials.json` must exist).
+- For Claude usage: **[Claude Code](https://www.anthropic.com/claude-code)** installed and logged in.
+  On Windows/Linux this means `~/.claude/.credentials.json` exists; on macOS the CLI stores
+  credentials in the **login Keychain** instead, and the plugin falls back to reading them from
+  there when the file is absent.
 - For Codex usage: **[Codex CLI](https://developers.openai.com/codex)** installed and logged in with a
   ChatGPT account (`~/.codex/auth.json` must exist).
 
@@ -69,7 +71,8 @@ Select a key to configure it:
   purpose; see [Polling & rate limits](#polling--rate-limits).
 - **Warning / Critical thresholds** — the percentages at which a bar turns yellow / orange.
 - **Credentials path** — optional override if your credentials file is in a non-standard location.
-  Leave empty to use the default.
+  Leave empty to use the default. Setting an explicit path disables the macOS Keychain fallback —
+  the plugin then reads exactly the file you named.
 
 The **single-window** action adds: **Provider** (Claude/Codex), **Window** (5-hour / weekly),
 **Reset info** (date-time / countdown / both / hidden), **Date format**, and **Provider accent**
@@ -97,7 +100,8 @@ Pressing a key forces an immediate refresh (subject to the throttle above).
 
 ## Security
 
-- The plugin **reads local credentials** created by the official Claude Code / Codex login flows. It
+- The plugin **reads local credentials** created by the official Claude Code / Codex login flows
+  (on macOS, Claude credentials are read from the login Keychain via `/usr/bin/security`). It
   never asks you to paste a token.
 - Tokens are kept **in memory only**. The plugin does **not** write them to Stream Deck settings, and
   does **not** modify your credentials files.
@@ -110,7 +114,7 @@ Pressing a key forces an immediate refresh (subject to the throttle above).
 
 | Key shows | Meaning | Fix |
 | --- | --- | --- |
-| **Login Required** | Credentials file missing, or the session/token is invalid (401/403). | Log in with the CLI (`claude` / `codex`) and the key recovers on the next refresh. |
+| **Login Required** | Credentials missing (file, and on macOS also the Keychain), or the session/token is invalid (401/403). | Log in with the CLI (`claude` / `codex`) and the key recovers on the next refresh. On macOS, click **Always Allow** if the Keychain prompts on first access. |
 | **Rate Limited** | The endpoint returned `429`. | Wait — it recovers automatically. Avoid spamming the key; increase the refresh interval if it persists. |
 | **Error** | Network error or an unexpected response. | Check your connection. If it persists, the unofficial endpoint may have changed — please file an issue. |
 | Small dot in the corner | Data is stale (a refresh failed); the numbers shown are the last known good ones. | Usually transient; it clears on the next successful refresh. |
