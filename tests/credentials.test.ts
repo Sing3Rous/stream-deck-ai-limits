@@ -79,6 +79,84 @@ test("errors never leak token material", async () => {
 	);
 });
 
+const KEYCHAIN_BLOB = JSON.stringify({
+	claudeAiOauth: {
+		accessToken: "FAKE_KEYCHAIN_ACCESS_TOKEN",
+		refreshToken: "FAKE_KEYCHAIN_REFRESH_TOKEN",
+		expiresAt: 7258118400000,
+	},
+});
+
+/** The default path, guaranteed absent, so the Keychain fallback is what gets exercised. */
+async function withoutDefaultCredentialsFile(run: () => Promise<void>): Promise<void> {
+	const dir = await mkdtemp(path.join(os.tmpdir(), "sdai-home-"));
+	const realHomedir = os.homedir;
+	Object.defineProperty(os, "homedir", { value: () => dir, configurable: true });
+	try {
+		await run();
+	} finally {
+		Object.defineProperty(os, "homedir", { value: realHomedir, configurable: true });
+		await rm(dir, { recursive: true, force: true });
+	}
+}
+
+test("macOS: missing default file falls back to the Keychain", async (t) => {
+	if (process.platform !== "darwin") {
+		t.skip("Keychain fallback is macOS-only");
+		return;
+	}
+	await withoutDefaultCredentialsFile(async () => {
+		const creds = await readClaudeCredentials(undefined, async () => KEYCHAIN_BLOB);
+		assert.equal(creds.accessToken, "FAKE_KEYCHAIN_ACCESS_TOKEN");
+		assert.equal(creds.refreshToken, "FAKE_KEYCHAIN_REFRESH_TOKEN");
+		assert.equal(creds.expiresAt, 7258118400000);
+	});
+});
+
+test("macOS: empty Keychain → auth_required", async (t) => {
+	if (process.platform !== "darwin") {
+		t.skip("Keychain fallback is macOS-only");
+		return;
+	}
+	await withoutDefaultCredentialsFile(async () => {
+		await assert.rejects(
+			() => readClaudeCredentials(undefined, async () => null),
+			(err: unknown) => isUsageError(err) && err.status === "auth_required",
+		);
+	});
+});
+
+test("an explicit custom path never consults the Keychain", async () => {
+	const missing = path.join(os.tmpdir(), "definitely-not-here-12345", ".credentials.json");
+	let consulted = false;
+	await assert.rejects(
+		() =>
+			readClaudeCredentials(missing, async () => {
+				consulted = true;
+				return KEYCHAIN_BLOB;
+			}),
+		(err: unknown) => isUsageError(err) && err.status === "auth_required",
+	);
+	assert.equal(consulted, false, "custom path must be taken at face value");
+});
+
+test("malformed Keychain blob → auth_required without leaking it", async (t) => {
+	if (process.platform !== "darwin") {
+		t.skip("Keychain fallback is macOS-only");
+		return;
+	}
+	await withoutDefaultCredentialsFile(async () => {
+		await assert.rejects(
+			() => readClaudeCredentials(undefined, async () => '{"claudeAiOauth":{"accessToken":"KC_CANARY'),
+			(err: unknown) => {
+				assert.ok(isUsageError(err));
+				assert.doesNotMatch(err.message, /KC_CANARY/);
+				return true;
+			},
+		);
+	});
+});
+
 test("isExpired: past expiry is expired", () => {
 	assert.equal(isExpired(1000, DEFAULT_EXPIRY_SKEW_MS, 2_000_000), true);
 });
