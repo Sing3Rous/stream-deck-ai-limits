@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 
 import { authRequired } from "../../utils/errors.ts";
 import { resolveClaudeCredentialsPath } from "../../utils/paths.ts";
+import { readClaudeKeychainBlob } from "./claude-keychain.ts";
 
 /**
  * OAuth credentials extracted from Claude Code's `~/.claude/.credentials.json`.
@@ -26,38 +27,54 @@ interface RawCredentialsFile {
 }
 
 /**
- * Read and parse Claude Code credentials from disk.
+ * Read and parse Claude Code credentials.
+ *
+ * Normally this reads `~/.claude/.credentials.json`. On macOS that file does not exist —
+ * Claude Code stores the identical JSON payload in the login Keychain — so when the default
+ * path is missing there, the Keychain is consulted before giving up. An explicit override
+ * path is always taken at face value: if the user named a file, a missing file is an error,
+ * not an invitation to read the Keychain.
  *
  * @param customPath Optional override path (Property Inspector). Defaults to
  *   `~/.claude/.credentials.json`.
- * @throws {UsageError} with status `auth_required` if the file is missing, unreadable,
- *   malformed, or contains no access token. Error messages never include token material.
+ * @param readKeychainBlob Injectable Keychain reader, for tests.
+ * @throws {UsageError} with status `auth_required` if the credentials are missing, unreadable,
+ *   malformed, or contain no access token. Error messages never include token material.
  */
-export async function readClaudeCredentials(customPath?: string): Promise<ClaudeCredentials> {
+export async function readClaudeCredentials(
+	customPath?: string,
+	readKeychainBlob: () => Promise<string | null> = readClaudeKeychainBlob,
+): Promise<ClaudeCredentials> {
 	const filePath = resolveClaudeCredentialsPath(customPath);
+	const usingDefaultPath = !customPath?.trim();
 
 	let contents: string;
 	try {
 		contents = await readFile(filePath, "utf-8");
 	} catch (err) {
 		const code = (err as NodeJS.ErrnoException)?.code;
-		if (code === "ENOENT") {
-			throw authRequired("Claude credentials file not found. Log in with Claude Code first.");
+		if (code !== "ENOENT") {
+			throw authRequired("Could not read Claude credentials file.");
 		}
-		throw authRequired("Could not read Claude credentials file.");
+		const blob =
+			usingDefaultPath && process.platform === "darwin" ? await readKeychainBlob() : null;
+		if (blob === null) {
+			throw authRequired("Claude credentials not found. Log in with Claude Code first.");
+		}
+		contents = blob;
 	}
 
 	let parsed: RawCredentialsFile;
 	try {
 		parsed = JSON.parse(contents) as RawCredentialsFile;
 	} catch {
-		throw authRequired("Claude credentials file is not valid JSON.");
+		throw authRequired("Claude credentials are not valid JSON.");
 	}
 
 	const oauth = parsed?.claudeAiOauth;
 	const accessToken = typeof oauth?.accessToken === "string" ? oauth.accessToken : "";
 	if (!accessToken) {
-		throw authRequired("Claude credentials file has no access token.");
+		throw authRequired("Claude credentials have no access token.");
 	}
 
 	return {
