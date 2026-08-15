@@ -6,6 +6,13 @@ const execFileAsync = promisify(execFile);
 /** Generic-password service name Claude Code uses for its macOS Keychain item. */
 export const KEYCHAIN_SERVICE = "Claude Code-credentials";
 
+/**
+ * Absolute path rather than a bare name: `/etc/paths` puts `/usr/local/bin` ahead of
+ * `/usr/bin`, so a PATH-resolved `security` could be shadowed by a planted binary on Macs
+ * where that directory is user-writable — and this call hands back an OAuth token.
+ */
+const SECURITY_BIN = "/usr/bin/security";
+
 /** Give up rather than stall a key refresh if the Keychain prompts or hangs. */
 const KEYCHAIN_TIMEOUT_MS = 5_000;
 
@@ -25,7 +32,7 @@ const KEYCHAIN_MAX_BYTES = 1024 * 1024;
 export async function readClaudeKeychainBlob(): Promise<string | null> {
 	try {
 		const { stdout } = await execFileAsync(
-			"security",
+			SECURITY_BIN,
 			["find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
 			{ encoding: "utf-8", timeout: KEYCHAIN_TIMEOUT_MS, maxBuffer: KEYCHAIN_MAX_BYTES },
 		);
