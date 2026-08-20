@@ -1,6 +1,8 @@
 import os from "node:os";
 import path from "node:path";
 
+import { authRequired } from "./errors.ts";
+
 /**
  * Default location of the Claude Code OAuth credentials file, created by the official
  * `claude` login flow: `~/.claude/.credentials.json`.
@@ -27,10 +29,21 @@ export function resolveCredentialsPath(defaultPath: string, customPath?: string)
 	if (!trimmed) {
 		return defaultPath;
 	}
+	// Do not hand network or device paths to fs APIs: on Windows those can trigger outbound
+	// integrated authentication. Local drive paths, POSIX paths, and home-relative paths remain
+	// supported on every platform.
+	if (isNetworkOrDevicePath(trimmed)) {
+		throw authRequired("Network and device credentials paths are not supported.");
+	}
 	if (trimmed === "~" || trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
 		return path.join(os.homedir(), trimmed.slice(1));
 	}
 	return path.resolve(trimmed);
+}
+
+/** Whether a path uses a Windows UNC/network or device namespace prefix. */
+export function isNetworkOrDevicePath(value: string): boolean {
+	return value.startsWith("\\\\") || value.startsWith("//") || /^\\(?:\?\?\\|Device\\)/i.test(value);
 }
 
 /** @see resolveCredentialsPath — Claude default. */

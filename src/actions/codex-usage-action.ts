@@ -14,8 +14,8 @@ export class CodexUsageAction extends UsageActionBase {
 
 	protected createProvider(config: ResolvedUsageSettings): Provider {
 		return new CodexProvider({
-			// Shared per provider+interval so backoff/last-good persist across tab switches.
-			cache: getSharedCache("codex", config.intervalSec * 1000),
+			// Shared only by matching provider, interval, account, and thresholds.
+			cache: getSharedCache("codex", config.intervalSec * 1000, config),
 			thresholds: config.thresholds,
 			customCredentialsPath: config.customCredentialsPath,
 			logger,

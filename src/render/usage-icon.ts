@@ -1,7 +1,8 @@
 import { statusForPercent } from "../providers/status.ts";
 import type { StatusThresholds, UsageSnapshot, UsageStatus, UsageWindow } from "../providers/types.ts";
 import { DEFAULT_THRESHOLDS } from "../providers/types.ts";
-import { paletteForStatus } from "./colors.ts";
+import { formatCountdown } from "../utils/time.ts";
+import { paletteForStatus, type Palette } from "./colors.ts";
 import { SIZE, escapeXml, toDataUrl } from "./svg.ts";
 
 export { toDataUrl };
@@ -12,12 +13,15 @@ export { toDataUrl };
  * Two layouts:
  *  - **fallback** (full-key message) for `auth_required`, `rate_limited`, `error`, or when
  *    both windows lack data;
- *  - **bars** (5H + W with progress bars) for `ok`/`warning`/`critical`/`limited`/`stale`.
- *    A `stale` snapshot uses the bars layout with a small "STALE" marker.
+ *  - **bars** (5H + W with progress bars; Copilot: monthly premium bar + text countdown) for
+ *    `ok`/`warning`/`critical`/`limited`/`stale`. A `stale` snapshot uses the bars layout with
+ *    a small "STALE" marker.
  *
  * The renderer is provider-agnostic — it only reads the normalized {@link UsageSnapshot}.
+ *
+ * @param now Clock used for the Copilot reset countdown; defaults to `new Date()`.
  */
-export function renderUsageIcon(snapshot: UsageSnapshot): string {
+export function renderUsageIcon(snapshot: UsageSnapshot, now: Date = new Date()): string {
 	const status = snapshot.status;
 	const label = providerLabel(snapshot.provider);
 
@@ -30,15 +34,23 @@ export function renderUsageIcon(snapshot: UsageSnapshot): string {
 		return renderMessage("error", [label, "No", "Data"]);
 	}
 
-	return renderBars(snapshot);
+	return renderBars(snapshot, now);
 }
 
 /** Short display name shown on the key for each provider. */
 function providerLabel(provider: UsageSnapshot["provider"]): string {
-	return provider === "codex" ? "Codex" : "Claude";
+	switch (provider) {
+		case "codex":
+			return "Codex";
+		case "copilot":
+			return "Copilot";
+		case "claude":
+		default:
+			return "Claude";
+	}
 }
 
-function renderBars(snapshot: UsageSnapshot): string {
+function renderBars(snapshot: UsageSnapshot, now: Date): string {
 	const thresholds = snapshot.thresholds ?? DEFAULT_THRESHOLDS;
 	const stale = snapshot.status === "stale";
 
@@ -54,11 +66,40 @@ function renderBars(snapshot: UsageSnapshot): string {
 		? `<circle cx="${SIZE - 9}" cy="9" r="3" fill="${palette.textMuted}"><title>data is stale (refresh pending)</title></circle>`
 		: "";
 
+	if (snapshot.provider === "copilot") {
+		return renderCopilotBars(providerLabel(snapshot.provider), snapshot.session, palette, sessionAccent, staleDot, now);
+	}
+
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
   <rect width="${SIZE}" height="${SIZE}" fill="${palette.background}"/>
   ${barRow(8, "5H", snapshot.session, palette.text, palette.track, sessionAccent)}
   <line x1="12" y1="72" x2="${SIZE - 12}" y2="72" stroke="${palette.track}" stroke-width="1"/>
   ${barRow(80, "W", snapshot.weekly, palette.text, palette.track, weeklyAccent)}
+  ${staleDot}
+</svg>`;
+}
+
+/**
+ * Copilot layout: a monthly premium-usage bar on top, and a text-only countdown to the next
+ * quota reset below the divider (Copilot has no weekly window to draw).
+ */
+function renderCopilotBars(
+	label: string,
+	window: UsageWindow,
+	palette: Palette,
+	accent: string,
+	staleDot: string,
+	now: Date,
+): string {
+	const countdown = formatCountdown(window.resetAt, now);
+	const resetText =
+		countdown === null ? "—" : countdown === "now" ? "Resets now" : `${countdown} left`;
+
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
+  <rect width="${SIZE}" height="${SIZE}" fill="${palette.background}"/>
+  ${barRow(8, label, window, palette.text, palette.track, accent, 16)}
+  <line x1="12" y1="72" x2="${SIZE - 12}" y2="72" stroke="${palette.track}" stroke-width="1"/>
+  <text x="${SIZE / 2}" y="112" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" font-weight="700" fill="${palette.text}">${escapeXml(resetText)}</text>
   ${staleDot}
 </svg>`;
 }
@@ -78,6 +119,7 @@ function barRow(
 	textColor: string,
 	trackColor: string,
 	accentColor: string,
+	valueFontSize = 22,
 ): string {
 	const hasValue = window.usedPercent !== null;
 	const clamped = hasValue ? Math.max(0, Math.min(100, Math.round(window.usedPercent as number))) : 0;
@@ -86,7 +128,7 @@ function barRow(
 
 	return `
   <text x="12" y="${top + 22}" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${textColor}">${escapeXml(label)}</text>
-  <text x="${SIZE - 12}" y="${top + 22}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${textColor}">${escapeXml(valueText)}</text>
+  <text x="${SIZE - 12}" y="${top + 22}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="${valueFontSize}" font-weight="700" fill="${textColor}">${escapeXml(valueText)}</text>
   <rect x="12" y="${top + 34}" width="120" height="12" rx="6" fill="${trackColor}"/>
   ${barWidth > 0 ? `<rect x="12" y="${top + 34}" width="${barWidth}" height="12" rx="6" fill="${accentColor}"/>` : ""}`;
 }

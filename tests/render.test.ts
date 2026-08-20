@@ -137,6 +137,25 @@ test("both windows null (non-error status) falls back to a No Data message", () 
 	assert.match(svg, /Data/);
 });
 
+test("Copilot combined rendering shows monthly percentage and countdown", () => {
+	const svg = renderUsageIcon(snapshot({
+		provider: "copilot",
+		session: { usedPercent: 25, resetAt: "2026-09-01T00:00:00Z" },
+		weekly: { usedPercent: null, resetAt: null },
+	}), new Date("2026-08-29T00:00:00Z"));
+	assert.match(svg, /Copilot/);
+	assert.match(svg, /25%/);
+	assert.match(svg, /3d 0h left/);
+	assert.doesNotMatch(svg, />W</);
+});
+
+test("Copilot combined rendering shows no data for an unlimited plan without a countdown", () => {
+	const svg = renderUsageIcon(snapshot({ provider: "copilot", session: { usedPercent: null, resetAt: "2026-09-01T00:00:00Z" }, weekly: { usedPercent: null, resetAt: null } }));
+	assert.match(svg, /No/);
+	assert.match(svg, /Data/);
+	assert.doesNotMatch(svg, /left/);
+});
+
 test("toDataUrl produces a base64 svg data URL that round-trips", () => {
 	const svg = renderUsageIcon(snapshot());
 	const url = toDataUrl(svg);
