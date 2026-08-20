@@ -1,14 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import os from "node:os";
+import path from "node:path";
 
 import {
 	resolveUsageSettings,
+	resolveSingleWindowSettings,
 	DEFAULT_INTERVAL_SEC,
 	MIN_INTERVAL_SEC,
 	MAX_INTERVAL_SEC,
 	DEFAULT_WARNING_THRESHOLD,
 	DEFAULT_CRITICAL_THRESHOLD,
 } from "../src/settings/usage-settings.ts";
+import { isUsageError } from "../src/utils/errors.ts";
+import { isNetworkOrDevicePath, resolveCredentialsPath } from "../src/utils/paths.ts";
 
 test("empty settings → all defaults", () => {
 	const r = resolveUsageSettings();
@@ -52,6 +57,21 @@ test("custom credentials path is trimmed; blank → undefined", () => {
 	assert.equal(resolveUsageSettings({ customCredentialsPath: "" }).customCredentialsPath, undefined);
 });
 
+test("credentials paths reject Windows network and device prefixes without exposing the path", () => {
+	for (const value of ["\\\\server\\share\\creds", "\\\\?\\UNC\\server\\share\\creds", "\\\\.\\pipe\\creds"]) {
+		assert.equal(isNetworkOrDevicePath(value), true);
+		assert.throws(() => resolveCredentialsPath("/default", value), (err: unknown) => {
+			assert.ok(isUsageError(err));
+			assert.equal(err.status, "auth_required");
+			assert.doesNotMatch(err.message, /server|pipe|creds/i);
+			return true;
+		});
+	}
+	assert.equal(resolveCredentialsPath("/default", "~/creds"), path.join(os.homedir(), "creds"));
+	assert.equal(isNetworkOrDevicePath("C:\\Users\\me\\creds"), false);
+	assert.equal(isNetworkOrDevicePath("/tmp/creds"), false);
+});
+
 test("valid full settings pass through", () => {
 	const r = resolveUsageSettings({
 		refreshIntervalSec: 90,
@@ -63,4 +83,16 @@ test("valid full settings pass through", () => {
 	assert.equal(r.thresholds.warning, 60);
 	assert.equal(r.thresholds.critical, 85);
 	assert.equal(r.customCredentialsPath, "/home/u/.claude/.credentials.json");
+});
+
+test("single-window: copilot always resolves to the session window", () => {
+	const r = resolveSingleWindowSettings({ provider: "copilot", window: "weekly" });
+	assert.equal(r.provider, "copilot");
+	assert.equal(r.window, "session");
+});
+
+test("single-window: copilot is accepted from the provider picker", () => {
+	const r = resolveSingleWindowSettings({ provider: "copilot" });
+	assert.equal(r.provider, "copilot");
+	assert.equal(r.window, "session");
 });

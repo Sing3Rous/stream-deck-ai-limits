@@ -271,16 +271,23 @@ test("Retry-After=0 is NOT trusted: applies the minimum backoff to avoid a 429 l
 	assert.equal(after.session.usedPercent, 70);
 });
 
-test("getSharedCache returns the same instance per provider+interval", () => {
-	const a = getSharedCache("claude", 60_000);
-	const b = getSharedCache("claude", 60_000);
-	assert.equal(a, b, "same provider+interval → same cache instance");
+test("getSharedCache returns the same instance for the same complete scope", () => {
+	const scope = { customCredentialsPath: "~/creds.json", thresholds: { warning: 70, critical: 90 } };
+	const a = getSharedCache("claude", 60_000, scope);
+	const b = getSharedCache("claude", 60_000, scope);
+	assert.equal(a, b, "same provider, interval, path, and thresholds → same cache instance");
 
 	const codex = getSharedCache("codex", 60_000);
 	assert.notEqual(a, codex, "different provider → different cache");
 
-	const other = getSharedCache("claude", 30_000);
+	const other = getSharedCache("claude", 30_000, scope);
 	assert.notEqual(a, other, "different interval → different cache");
+
+	const otherPath = getSharedCache("claude", 60_000, { ...scope, customCredentialsPath: "~/other.json" });
+	assert.notEqual(a, otherPath, "different credentials path → isolated cache");
+
+	const otherThresholds = getSharedCache("claude", 60_000, { ...scope, thresholds: { warning: 80, critical: 95 } });
+	assert.notEqual(a, otherThresholds, "different thresholds → isolated cache");
 });
 
 test("shared cache retains last-good (the basis for surviving a tab switch)", async () => {

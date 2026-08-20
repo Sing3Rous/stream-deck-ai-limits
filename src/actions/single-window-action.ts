@@ -10,6 +10,7 @@ import type {
 import { getSharedCache } from "../cache/ttl-cache.ts";
 import { ClaudeProvider } from "../providers/claude/claude-provider.ts";
 import { CodexProvider } from "../providers/codex/codex-provider.ts";
+import { CopilotProvider } from "../providers/copilot/copilot-provider.ts";
 import type { Provider, UsageSnapshot } from "../providers/types.ts";
 import { renderSingleWindowIcon } from "../render/single-window-icon.ts";
 import { toDataUrl } from "../render/svg.ts";
@@ -164,14 +165,22 @@ function createProvider(display: ResolvedSingleWindowSettings, usage: ResolvedUs
 	const ttlMs = usage.intervalSec * 1000;
 	if (display.provider === "codex") {
 		return new CodexProvider({
-			cache: getSharedCache("codex", ttlMs),
+			cache: getSharedCache("codex", ttlMs, usage),
+			thresholds: usage.thresholds,
+			customCredentialsPath: usage.customCredentialsPath,
+			logger,
+		});
+	}
+	if (display.provider === "copilot") {
+		return new CopilotProvider({
+			cache: getSharedCache("copilot", ttlMs, usage),
 			thresholds: usage.thresholds,
 			customCredentialsPath: usage.customCredentialsPath,
 			logger,
 		});
 	}
 	return new ClaudeProvider({
-		cache: getSharedCache("claude", ttlMs),
+		cache: getSharedCache("claude", ttlMs, usage),
 		thresholds: usage.thresholds,
 		customCredentialsPath: usage.customCredentialsPath,
 		logger,

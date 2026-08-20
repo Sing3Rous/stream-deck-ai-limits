@@ -1,12 +1,12 @@
 /**
  * Provider-agnostic usage model.
  *
- * Every provider (Claude now, Codex later) normalizes its raw API response into a
+ * Every provider (Claude, Codex, and GitHub Copilot) normalizes its raw API response into a
  * {@link UsageSnapshot}. The renderer and cache only ever see this shape — they have no
  * knowledge of provider-specific fields.
  */
 
-export type UsageProvider = "claude" | "codex";
+export type UsageProvider = "claude" | "codex" | "copilot";
 
 /**
  * Overall key status, derived from the worst of the two usage windows plus error conditions.
