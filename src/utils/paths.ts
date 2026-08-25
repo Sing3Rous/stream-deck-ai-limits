@@ -30,8 +30,9 @@ export function resolveCredentialsPath(defaultPath: string, customPath?: string)
 		return defaultPath;
 	}
 	// Do not hand network or device paths to fs APIs: on Windows those can trigger outbound
-	// integrated authentication. Local drive paths, POSIX paths, and home-relative paths remain
-	// supported on every platform.
+	// integrated authentication. Plain local drive paths (C:\...), POSIX paths, and
+	// home-relative paths remain supported on every platform; note that extended-length
+	// local paths (\\?\C:\...) start with "\\" and are therefore rejected here too.
 	if (isNetworkOrDevicePath(trimmed)) {
 		throw authRequired("Network and device credentials paths are not supported.");
 	}
