@@ -296,6 +296,49 @@ test("shared cache retains last-good (the basis for surviving a tab switch)", as
 	assert.equal(again.lastSnapshot?.session.usedPercent, 77);
 });
 
+test("getSharedCache isolates requesty scopes by credentialScope and dollar thresholds", () => {
+	const base = {
+		credentialScope: "env",
+		requestyThresholds: { balanceWarningUsd: 5, balanceCriticalUsd: 2, spendWarningUsd: 2, spendCriticalUsd: 5 },
+	} as const;
+
+	const a = getSharedCache("requesty", 60_000, base);
+	const b = getSharedCache("requesty", 60_000, base);
+	assert.equal(a, b, "identical scope → same cache instance");
+
+	const envDiff = getSharedCache("requesty", 60_000, { ...base, credentialScope: "default" });
+	assert.notEqual(a, envDiff, "different credentialScope → different cache");
+
+	const threshDiff = getSharedCache("requesty", 60_000, {
+		...base,
+		requestyThresholds: { balanceWarningUsd: 10, balanceCriticalUsd: 5, spendWarningUsd: 4, spendCriticalUsd: 9 },
+	});
+	assert.notEqual(a, threshDiff, "different dollar thresholds → different cache");
+
+	const unscoped = getSharedCache("requesty", 60_000);
+	assert.notEqual(a, unscoped, "scoped vs unscoped → different cache");
+});
+
+test("getSharedCache isolates claude scopes by credentials path and percent thresholds", () => {
+	const base = { customCredentialsPath: "/tmp/a.json", thresholds: { warning: 70, critical: 90 } } as const;
+
+	const a = getSharedCache("claude", 60_000, base);
+	const same = getSharedCache("claude", 60_000, base);
+	assert.equal(a, same, "identical scope → same cache instance");
+
+	assert.notEqual(
+		a,
+		getSharedCache("claude", 60_000, { ...base, customCredentialsPath: "/tmp/b.json" }),
+		"different credentials path → different cache",
+	);
+	assert.notEqual(
+		a,
+		getSharedCache("claude", 60_000, { ...base, thresholds: { warning: 80, critical: 95 } }),
+		"different percent thresholds → different cache",
+	);
+	assert.notEqual(a, getSharedCache("claude", 60_000), "scoped vs unscoped → different cache");
+});
+
 test("force throttle gates on last ATTEMPT, not last success (failed fetch then spam)", async () => {
 	const c = clock();
 	// Long backoff so the rate-limit path doesn't interfere; we test the force throttle itself.

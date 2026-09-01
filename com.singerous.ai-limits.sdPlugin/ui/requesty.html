@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+	<head lang="en">
+		<meta charset="utf-8" />
+		<title>Requesty Usage Settings</title>
+		<script src="https://sdpi-components.dev/releases/v4/sdpi-components.js"></script>
+	</head>
+	<body>
+		<!--
+			Settings auto-persist to the action via the `setting` attribute and apply live in the
+			plugin (onDidReceiveSettings). Components: https://sdpi-components.dev/docs/components
+		-->
+		<sdpi-item label="Refresh interval (sec)">
+			<sdpi-range setting="refreshIntervalSec" min="60" max="600" step="5" default="120" showlabels></sdpi-range>
+		</sdpi-item>
+
+		<sdpi-item label="Balance warning at ($)">
+			<sdpi-textfield setting="balanceWarningUsd" placeholder="5.00"></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item label="Balance critical at ($)">
+			<sdpi-textfield setting="balanceCriticalUsd" placeholder="2.00"></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item>
+			<small style="color: var(--sdpi-color-muted, #999);">
+				Balance warns when it drops LOW: warning at $5, critical at $2.
+			</small>
+		</sdpi-item>
+
+		<sdpi-item label="Spend warning at ($)">
+			<sdpi-textfield setting="spendWarningUsd" placeholder="2.00"></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item label="Spend critical at ($)">
+			<sdpi-textfield setting="spendCriticalUsd" placeholder="5.00"></sdpi-textfield>
+		</sdpi-item>
+		<sdpi-item>
+			<small style="color: var(--sdpi-color-muted, #999);">
+				Spend (24h / 7d) warns when it goes HIGH: warning at $2, critical at $5.
+			</small>
+		</sdpi-item>
+
+		<sdpi-item label="Credentials path">
+			<sdpi-textfield setting="customCredentialsPath" placeholder="Default: ~/.requesty/api-key"></sdpi-textfield>
+		</sdpi-item>
+
+		<sdpi-item>
+			<small style="color: var(--sdpi-color-muted, #999);">
+				API key resolution order: custom path → REQUESTY_API_KEY env var → ~/.requesty/api-key.
+			</small>
+		</sdpi-item>
+	</body>
+</html>

@@ -50,12 +50,44 @@
 					"TitleAlignment": "middle"
 				}
 			]
+		},
+		{
+			"Name": "Requesty Usage",
+			"UUID": "com.singerous.ai-limits.requesty-usage",
+			"Icon": "imgs/actions/requesty/icon",
+			"Tooltip": "Show Requesty balance and 24h/7d spend on your keys.",
+			"PropertyInspectorPath": "ui/requesty.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/requesty/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
+			"Name": "Requesty Metric",
+			"UUID": "com.singerous.ai-limits.requesty-single",
+			"Icon": "imgs/actions/requesty/icon",
+			"Tooltip": "Show one Requesty metric (balance, 24h or 7d spend) at a larger size.",
+			"PropertyInspectorPath": "ui/requesty-single.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/requesty/key",
+					"TitleAlignment": "middle"
+				}
+			]
 		}
 	],
 	"Category": "Claude & Codex Usage",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
-	"Description": "Show Claude Code and Codex CLI usage limits (5-hour and weekly) on your keys.",
+	"Description": "Show Claude Code, Codex CLI, and Requesty usage on your keys.",
 	"Icon": "imgs/plugin/marketplace",
 	"SDKVersion": 3,
 	"Software": {

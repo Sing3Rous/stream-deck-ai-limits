@@ -1,7 +1,8 @@
+import { requestyMetricStatus } from "../providers/requesty/requesty-normalizer.ts";
 import { statusForPercent } from "../providers/status.ts";
-import type { StatusThresholds, UsageSnapshot, UsageStatus, UsageWindow } from "../providers/types.ts";
-import { DEFAULT_THRESHOLDS } from "../providers/types.ts";
-import { paletteForStatus } from "./colors.ts";
+import type { RequestyThresholds, StatusThresholds, UsageSnapshot, UsageStatus, UsageWindow } from "../providers/types.ts";
+import { DEFAULT_REQUESTY_THRESHOLDS, DEFAULT_THRESHOLDS } from "../providers/types.ts";
+import { paletteForStatus, type Palette } from "./colors.ts";
 import { SIZE, escapeXml, toDataUrl } from "./svg.ts";
 
 export { toDataUrl };
@@ -9,9 +10,10 @@ export { toDataUrl };
 /**
  * Render a usage snapshot to an SVG string.
  *
- * Two layouts:
+ * Three layouts:
  *  - **fallback** (full-key message) for `auth_required`, `rate_limited`, `error`, or when
  *    both windows lack data;
+ *  - **requesty money** (BAL / 24H / 7D rows, no bars) for Requesty snapshots with money data;
  *  - **bars** (5H + W with progress bars) for `ok`/`warning`/`critical`/`limited`/`stale`.
  *    A `stale` snapshot uses the bars layout with a small "STALE" marker.
  *
@@ -25,6 +27,12 @@ export function renderUsageIcon(snapshot: UsageSnapshot): string {
 		return renderMessage(status, messageLines(status, label));
 	}
 
+	// Requesty has no percentage windows — render the money metrics instead. Must run before the
+	// "no usable numbers" check below, which would otherwise match Requesty's always-null windows.
+	if (snapshot.provider === "requesty" && snapshot.requesty) {
+		return renderRequestyMoney(snapshot.requesty);
+	}
+
 	// No usable numbers at all → treat as a generic message even if status looked ok.
 	if (snapshot.session.usedPercent === null && snapshot.weekly.usedPercent === null) {
 		return renderMessage("error", [label, "No", "Data"]);
@@ -35,7 +43,56 @@ export function renderUsageIcon(snapshot: UsageSnapshot): string {
 
 /** Short display name shown on the key for each provider. */
 function providerLabel(provider: UsageSnapshot["provider"]): string {
-	return provider === "codex" ? "Codex" : "Claude";
+	switch (provider) {
+		case "codex":
+			return "Codex";
+		case "requesty":
+			return "Requesty";
+		case "claude":
+		default:
+			return "Claude";
+	}
+}
+
+/**
+ * Requesty layout: three money rows (BAL / 24H / 7D) with no bars — money has no cap. Each row
+ * is colored by its own metric's status; a row without a value renders muted with a dash.
+ */
+function renderRequestyMoney(money: NonNullable<UsageSnapshot["requesty"]>): string {
+	const thresholds = money.thresholds ?? DEFAULT_REQUESTY_THRESHOLDS;
+	const palette = paletteForStatus("ok");
+	const rows: Array<{ label: string; value: number | null; kind: "balance" | "spend" }> = [
+		{ label: "BAL", value: money.balanceUsd, kind: "balance" },
+		{ label: "24H", value: money.spend24hUsd, kind: "spend" },
+		{ label: "7D", value: money.spend7dUsd, kind: "spend" },
+	];
+	const body = rows
+		.map((row, i) => moneyRow(8 + i * 46, row.label, row.value, row.kind, thresholds, palette))
+		.join("\n  ");
+
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="${SIZE}" height="${SIZE}" viewBox="0 0 ${SIZE} ${SIZE}">
+  <rect width="${SIZE}" height="${SIZE}" fill="${palette.background}"/>
+  ${body}
+</svg>`;
+}
+
+function moneyRow(
+	top: number,
+	label: string,
+	value: number | null,
+	kind: "balance" | "spend",
+	thresholds: RequestyThresholds,
+	palette: Palette,
+): string {
+	const hasValue = value !== null;
+	const color = hasValue
+		? paletteForStatus(requestyMetricStatus(value, kind, thresholds)).accent
+		: palette.textMuted;
+	const valueText = hasValue ? `$${value.toFixed(2)}` : "—";
+
+	return `
+  <text x="12" y="${top + 22}" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${color}">${escapeXml(label)}</text>
+  <text x="${SIZE - 12}" y="${top + 22}" text-anchor="end" font-family="Helvetica, Arial, sans-serif" font-size="22" font-weight="700" fill="${color}">${escapeXml(valueText)}</text>`;
 }
 
 function renderBars(snapshot: UsageSnapshot): string {

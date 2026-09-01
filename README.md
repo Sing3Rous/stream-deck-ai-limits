@@ -1,25 +1,30 @@
-# Claude & Codex Usage — Stream Deck plugin
+# Claude, Codex & Requesty Usage — Stream Deck plugin
 
-Show your **Claude Code** and **Codex CLI** usage limits right on your Elgato Stream Deck keys.
+Show your **Claude Code**, **Codex CLI**, and **Requesty** usage right on your Elgato Stream Deck
+keys.
 
-Each key displays how much of your rolling **5-hour** and **weekly** quota you've used, color-coded
-by how close you are to the limit, and updates automatically. No tokens to paste — the plugin reads
-the credentials the official CLIs already created when you logged in.
+Each key displays how much of your rolling **5-hour** and **weekly** quota you've used — or, for
+Requesty, your **org balance** and **24h / 7d spend** — color-coded by how close you are to the
+limit, and updates automatically. No tokens to paste into the plugin — it reads the credentials the
+official CLIs already created, or a Requesty API key from a file or environment variable.
 
 > [!WARNING]
 > This plugin reads usage from **unofficial / internal endpoints** used by the Claude Code and
-> Codex CLIs. They are not public APIs and **may change or break** without notice.
+> Codex CLIs — those are not public APIs and **may change or break** without notice. Requesty, on
+> the other hand, uses its official Management API.
 
 ---
 
 ## What it looks like
 
-Three action types (drag any of them onto a key):
+Five action types (drag any of them onto a key):
 
 | Action | Shows |
 | --- | --- |
 | **Claude Usage** | Claude's 5-hour and weekly usage in one key (two bars) |
 | **Codex Usage** | Codex's 5-hour and weekly usage in one key (two bars) |
+| **Requesty Usage** | Requesty org balance and 24h/7d spend in one key (three rows) |
+| **Requesty Metric** | One Requesty metric (balance / 24h / 7d spend) at a larger size |
 | **Usage (single window)** | One provider + one window, larger, with the reset date/time and/or countdown |
 
 Color bands (configurable): `0–69%` green · `70–89%` yellow · `90–99%` orange · `100%` red.
@@ -33,8 +38,10 @@ Color bands (configurable): `0–69%` green · `70–89%` yellow · `90–99%` o
   (`~/.claude/.credentials.json` must exist).
 - For Codex usage: **[Codex CLI](https://developers.openai.com/codex)** installed and logged in with a
   ChatGPT account (`~/.codex/auth.json` must exist).
+- For Requesty usage: a **Requesty API key** with read permissions on your org (see
+  [Requesty](#requesty)). No CLI needed.
 
-You only need the CLI for the provider(s) you want to display.
+You only need the CLI (or API key) for the provider(s) you want to display.
 
 ---
 
@@ -75,6 +82,28 @@ The **single-window** action adds: **Provider** (Claude/Codex), **Window** (5-ho
 **Reset info** (date-time / countdown / both / hidden), **Date format**, and **Provider accent**
 (colored frame / tinted background / none).
 
+### Requesty
+
+The Requesty actions show your org's **balance** and your key's **spend** from Requesty's official
+Management API (`api-v2.requesty.ai`):
+
+- **Requesty Usage** — org balance, last-24h spend, and last-7d spend stacked in one key (three rows).
+- **Requesty Metric** — one metric at a larger size, with a **metric** dropdown
+  (balance / 24h spend / 7d spend).
+- **API key** — create one in the Requesty dashboard with **read** permissions. It is resolved in
+  this order:
+  1. a custom **credentials path** you set in the Property Inspector (a file with a single bare key
+     line);
+  2. the `REQUESTY_API_KEY` environment variable;
+  3. `~/.requesty/api-key` — a file containing the key on a single line.
+
+  The key lives **in memory only** — it is never stored in Stream Deck settings.
+- **Refresh interval** — same as the other actions: 60–600 s, default 120 s.
+- **Dollar thresholds** — unlike the percentage-based Claude/Codex bars, Requesty thresholds are
+  dollar amounts, and the direction matters: **balance** warns when it drops **LOW** (warning at $5,
+  critical at $2), while **spend** (24h / 7d) warns when it goes **HIGH** (warning at $2, critical
+  at $5).
+
 Changes apply live — no need to restart the plugin.
 
 ---
@@ -97,8 +126,9 @@ Pressing a key forces an immediate refresh (subject to the throttle above).
 
 ## Security
 
-- The plugin **reads local credentials** created by the official Claude Code / Codex login flows. It
-  never asks you to paste a token.
+- The plugin **reads local credentials** created by the official Claude Code / Codex login flows, or
+  a **Requesty API key** from a file or environment variable. It never asks you to paste a token into
+  the plugin.
 - Tokens are kept **in memory only**. The plugin does **not** write them to Stream Deck settings, and
   does **not** modify your credentials files.
 - Tokens and `Authorization` headers are **never logged**.
@@ -110,7 +140,7 @@ Pressing a key forces an immediate refresh (subject to the throttle above).
 
 | Key shows | Meaning | Fix |
 | --- | --- | --- |
-| **Login Required** | Credentials file missing, or the session/token is invalid (401/403). | Log in with the CLI (`claude` / `codex`) and the key recovers on the next refresh. |
+| **Login Required** | Credentials file missing, or the session/token is invalid (401/403). | Log in with the CLI (`claude` / `codex`), or check `REQUESTY_API_KEY` / `~/.requesty/api-key`, and the key recovers on the next refresh. |
 | **Rate Limited** | The endpoint returned `429`. | Wait — it recovers automatically. Avoid spamming the key; increase the refresh interval if it persists. |
 | **Error** | Network error or an unexpected response. | Check your connection. If it persists, the unofficial endpoint may have changed — please file an issue. |
 | Small dot in the corner | Data is stale (a refresh failed); the numbers shown are the last known good ones. | Usually transient; it clears on the next successful refresh. |
@@ -122,11 +152,13 @@ review before sharing.
 
 ## Known limitations
 
-- Built on **unofficial endpoints** — may break if the CLIs change internally.
+- Built on **unofficial endpoints** for Claude/Codex — may break if the CLIs change internally.
 - Codex token **auto-refresh is not implemented** yet; if the Codex session expires you'll see
   "Login Required" until you re-run the Codex CLI.
 - The plugin pins the Stream Deck **Node 20** runtime (the Node 24 runtime mishandles a header the
   Codex endpoint requires).
+- Requesty shows **org balance** and **per-key spend** — there's no per-project or per-key breakdown
+  of where the spend went.
 
 ---
 

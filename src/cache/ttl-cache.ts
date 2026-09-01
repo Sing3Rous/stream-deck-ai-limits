@@ -1,5 +1,6 @@
 import { genericError, isUsageError } from "../utils/errors.ts";
-import type { UsageProvider, UsageSnapshot } from "../providers/types.ts";
+import type { RequestyThresholds, StatusThresholds, UsageProvider, UsageSnapshot } from "../providers/types.ts";
+import { resolveCredentialsPath } from "../utils/paths.ts";
 
 /** Default cache TTL and timer interval (see project decision: 60s default, 15s floor). */
 export const DEFAULT_TTL_MS = 60_000;
@@ -181,21 +182,64 @@ export class UsageCache {
 }
 
 /**
- * Process-wide cache registry, keyed by provider + interval.
+ * Process-wide cache registry, keyed by the provider, the interval, and every setting that can
+ * change the resulting snapshot. Two keys whose effective scope differs (different account,
+ * different percent thresholds, different Requesty credential source or dollar thresholds) must
+ * never share usage data.
  *
- * All keys for the same provider/interval share ONE cache so that the last-good snapshot and the
- * 429 backoff persist across key presses, timer ticks, and (critically) tab/folder switches —
- * `onWillAppear` no longer starts from an empty cache and re-hits the endpoint. Several keys also
- * can't multiply network calls (the cache dedupes).
+ * All keys for the same provider/interval/scope share ONE cache so that the last-good snapshot
+ * and the 429 backoff persist across key presses, timer ticks, and (critically) tab/folder
+ * switches — `onWillAppear` no longer starts from an empty cache and re-hits the endpoint.
+ * Several keys also can't multiply network calls (the cache dedupes).
  */
 const sharedCaches = new Map<string, UsageCache>();
 
-export function getSharedCache(provider: UsageProvider, ttlMs: number): UsageCache {
-	const key = `${provider}:${ttlMs}`;
+/**
+ * Optional extra settings that scope a shared cache entry. The scope is hashed into the cache
+ * key, so two actions that fetch the same account with the same settings share one cache while
+ * different scopes stay isolated.
+ */
+export interface SharedCacheScope {
+	/** Custom credentials path (Claude/Codex). Resolved before hashing so equivalent paths collide. */
+	customCredentialsPath?: string;
+	/** Percent thresholds (Claude/Codex). */
+	thresholds?: StatusThresholds;
+	/** Requesty: stable identity of the credential source in effect (`custom:<path>` | `env` | `default`). */
+	credentialScope?: string;
+	/** Requesty: resolved dollar thresholds for balance and spend. */
+	requestyThresholds?: RequestyThresholds;
+}
+
+export function getSharedCache(provider: UsageProvider, ttlMs: number, scope?: SharedCacheScope): UsageCache {
+	const key = JSON.stringify({
+		provider,
+		ttlMs,
+		credentialsPath: cacheCredentialsPath(scope?.customCredentialsPath),
+		credentialScope: scope?.credentialScope,
+		warningThreshold: scope?.thresholds?.warning,
+		criticalThreshold: scope?.thresholds?.critical,
+		requestyBalanceWarningUsd: scope?.requestyThresholds?.balanceWarningUsd,
+		requestyBalanceCriticalUsd: scope?.requestyThresholds?.balanceCriticalUsd,
+		requestySpendWarningUsd: scope?.requestyThresholds?.spendWarningUsd,
+		requestySpendCriticalUsd: scope?.requestyThresholds?.spendCriticalUsd,
+	});
 	let cache = sharedCaches.get(key);
 	if (!cache) {
 		cache = new UsageCache({ provider, ttlMs });
 		sharedCaches.set(key, cache);
 	}
 	return cache;
+}
+
+function cacheCredentialsPath(customPath?: string): string | undefined {
+	if (!customPath?.trim()) {
+		return undefined;
+	}
+	try {
+		return resolveCredentialsPath("", customPath);
+	} catch {
+		// The credentials reader will convert an invalid path to auth_required. Keep an isolated
+		// cache entry until then so invalid settings cannot collide with a valid key.
+		return `invalid:${customPath.trim()}`;
+	}
 }

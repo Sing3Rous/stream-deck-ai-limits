@@ -1,4 +1,4 @@
-import type { UsageStatus } from "../providers/types.ts";
+import type { UsageProvider, UsageStatus } from "../providers/types.ts";
 
 /**
  * Palette for the usage key, keyed by status. Kept separate from the renderer so the visual
@@ -55,8 +55,14 @@ export function paletteForStatus(status: UsageStatus): Palette {
 }
 
 /** Brand colors per provider: a bright accent (frame) and a tinted background fill. */
-export function providerColors(provider: "claude" | "codex"): { accent: string; tint: string } {
-	return provider === "codex"
-		? { accent: "#10a37f", tint: "#173d34" } // teal
-		: { accent: "#d97757", tint: "#46291f" }; // Claude orange
+export function providerColors(provider: UsageProvider): { accent: string; tint: string } {
+	switch (provider) {
+		case "codex":
+			return { accent: "#10a37f", tint: "#173d34" }; // teal
+		case "requesty":
+			return { accent: "#7c6cf0", tint: "#2b2450" }; // violet
+		case "claude":
+		default:
+			return { accent: "#d97757", tint: "#46291f" }; // Claude orange
+	}
 }

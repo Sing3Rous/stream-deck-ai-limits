@@ -42,3 +42,16 @@ export function resolveClaudeCredentialsPath(customPath?: string): string {
 export function resolveCodexCredentialsPath(customPath?: string): string {
 	return resolveCredentialsPath(defaultCodexCredentialsPath(), customPath);
 }
+
+/**
+ * Default location of the Requesty API key file, containing a single bare token line:
+ * `~/.requesty/api-key`.
+ */
+export function defaultRequestyCredentialsPath(): string {
+	return path.join(os.homedir(), ".requesty", "api-key");
+}
+
+/** @see resolveCredentialsPath — Requesty default. */
+export function resolveRequestyCredentialsPath(customPath?: string): string {
+	return resolveCredentialsPath(defaultRequestyCredentialsPath(), customPath);
+}

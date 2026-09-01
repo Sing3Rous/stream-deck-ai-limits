@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { renderUsageIcon, toDataUrl } from "../src/render/usage-icon.ts";
+import { renderRequestySingleIcon } from "../src/render/requesty-single-icon.ts";
 import type { UsageSnapshot, UsageStatus } from "../src/providers/types.ts";
 
 function snapshot(partial: Partial<UsageSnapshot> = {}): UsageSnapshot {
@@ -14,6 +15,23 @@ function snapshot(partial: Partial<UsageSnapshot> = {}): UsageSnapshot {
 		stale: false,
 		...partial,
 	};
+}
+
+/** A requesty snapshot with money data (percentage windows always null). */
+function requestySnapshot(partial: Partial<UsageSnapshot> = {}): UsageSnapshot {
+	return snapshot({
+		provider: "requesty",
+		status: "ok",
+		session: { usedPercent: null, resetAt: null },
+		weekly: { usedPercent: null, resetAt: null },
+		requesty: {
+			balanceUsd: 12.345,
+			spend24hUsd: 0.5,
+			spend7dUsd: null,
+			thresholds: { balanceWarningUsd: 5, balanceCriticalUsd: 2, spendWarningUsd: 2, spendCriticalUsd: 5 },
+		},
+		...partial,
+	});
 }
 
 /** Extract all `fill="..."` accent-ish colors to compare visual states. */
@@ -168,4 +186,94 @@ test("provider label: claude error shows 'Claude'", () => {
 		}),
 	);
 	assert.match(svg, /Claude/);
+});
+
+// --- Requesty layouts -------------------------------------------------------
+
+test("requesty combined layout: BAL/24H/7D rows with $ values", () => {
+	const svg = renderUsageIcon(requestySnapshot());
+	assert.match(svg, />BAL</);
+	assert.match(svg, />24H</);
+	assert.match(svg, />7D</);
+	assert.match(svg, /\$12\.35/, "balance rounded to 2 decimals");
+	assert.match(svg, /\$0\.50/, "spend 24h rounded to 2 decimals");
+	assert.match(svg, /—/, "null 7d value renders an em dash");
+	assert.doesNotMatch(svg, /5H/, "no percentage bars for requesty");
+	assert.doesNotMatch(svg, /No\s*Data/);
+});
+
+test("requesty combined layout: each row colored by its own metric status", () => {
+	const svg = renderUsageIcon(
+		requestySnapshot({
+			requesty: {
+				balanceUsd: 1, // ≤ critical(2) → critical
+				spend24hUsd: 3, // ≥ warning(2) → warning
+				spend7dUsd: 10, // ≥ critical(5) → critical
+				thresholds: { balanceWarningUsd: 5, balanceCriticalUsd: 2, spendWarningUsd: 2, spendCriticalUsd: 5 },
+			},
+		}),
+	);
+	const present = fills(svg);
+	assert.ok(present.includes("#ff9f0a"), `expected critical accent present, got: ${present.join(",")}`);
+	assert.ok(present.includes("#ffd60a"), `expected warning accent present, got: ${present.join(",")}`);
+});
+
+test("requesty combined layout: error status still renders the fallback message", () => {
+	const svg = renderUsageIcon(
+		requestySnapshot({
+			status: "error",
+			session: { usedPercent: null, resetAt: null },
+			weekly: { usedPercent: null, resetAt: null },
+			requesty: undefined,
+		}),
+	);
+	assert.match(svg, /Error/);
+	assert.match(svg, /Requesty/);
+	assert.doesNotMatch(svg, />BAL</);
+});
+
+test("requesty single layout: balance shows big $ value + caption", () => {
+	const svg = renderRequestySingleIcon(
+		requestySnapshot({ requesty: { balanceUsd: 12.345, spend24hUsd: null, spend7dUsd: null, thresholds: undefined } }),
+		"balance",
+	);
+	assert.match(svg, /\$12\.35/);
+	assert.match(svg, /Balance/);
+	assert.match(svg, /Requesty/);
+});
+
+test("requesty single layout: 24h spend caption with dash for null value", () => {
+	const svg = renderRequestySingleIcon(
+		requestySnapshot({ requesty: { balanceUsd: null, spend24hUsd: null, spend7dUsd: null, thresholds: undefined } }),
+		"spend24h",
+	);
+	assert.match(svg, /24h spend/);
+	assert.match(svg, /—/);
+});
+
+test("requesty single layout: 7d spend caption", () => {
+	const svg = renderRequestySingleIcon(
+		requestySnapshot({ requesty: { balanceUsd: null, spend24hUsd: null, spend7dUsd: 8.4, thresholds: undefined } }),
+		"spend7d",
+	);
+	assert.match(svg, /\$8\.40/);
+	assert.match(svg, /7d spend/);
+});
+
+test("requesty single layout: value colored by metric status", () => {
+	const svg = renderRequestySingleIcon(
+		requestySnapshot({ requesty: { balanceUsd: 1, spend24hUsd: null, spend7dUsd: null, thresholds: { balanceWarningUsd: 5, balanceCriticalUsd: 2, spendWarningUsd: 2, spendCriticalUsd: 5 } } }),
+		"balance",
+	);
+	assert.ok(fills(svg).includes("#ff9f0a"), `expected critical accent, got: ${fills(svg).join(",")}`);
+});
+
+test("requesty single layout: error status renders the fallback message", () => {
+	const svg = renderRequestySingleIcon(
+		requestySnapshot({ status: "error", session: { usedPercent: null, resetAt: null }, weekly: { usedPercent: null, resetAt: null }, requesty: undefined }),
+		"balance",
+	);
+	assert.match(svg, /Error/);
+	assert.match(svg, /Requesty/);
+	assert.doesNotMatch(svg, /\$12\.35/);
 });

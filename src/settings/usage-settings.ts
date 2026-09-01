@@ -1,4 +1,5 @@
-import type { StatusThresholds, UsageProvider } from "../providers/types.ts";
+import type { RequestyThresholds, StatusThresholds, UsageProvider } from "../providers/types.ts";
+import { DEFAULT_REQUESTY_THRESHOLDS } from "../providers/types.ts";
 import type { DateFormat } from "../utils/time.ts";
 
 /**
@@ -19,6 +20,13 @@ export type UsageActionSettings = {
 	resetDisplay?: string;
 	dateFormat?: string;
 	providerAccent?: string;
+	// Requesty actions only (ignored by the Claude/Codex actions):
+	requestyMetric?: string;
+	// $ amounts come from PI textfields, so accept numeric strings too.
+	balanceWarningUsd?: number | string;
+	balanceCriticalUsd?: number | string;
+	spendWarningUsd?: number | string;
+	spendCriticalUsd?: number | string;
 };
 
 /**
@@ -44,6 +52,11 @@ export interface ResolvedUsageSettings {
 	intervalSec: number;
 	thresholds: StatusThresholds;
 	customCredentialsPath: string | undefined;
+	/**
+	 * Requesty-only dollar thresholds; absent for percentage-based providers. Included in
+	 * {@link sameResolvedSettings} so threshold changes rebuild the Requesty provider/cache.
+	 */
+	requestyThresholds?: RequestyThresholds;
 }
 
 /**
@@ -60,6 +73,7 @@ export function resolveUsageSettings(settings: UsageActionSettings = {}): Resolv
 		intervalSec: resolveIntervalSec(settings.refreshIntervalSec),
 		thresholds: resolveThresholds(settings),
 		customCredentialsPath: settings.customCredentialsPath?.trim() || undefined,
+		requestyThresholds: resolveRequestySettings(settings).requestyThresholds,
 	};
 }
 
@@ -88,8 +102,70 @@ export function sameResolvedSettings(a: ResolvedUsageSettings, b: ResolvedUsageS
 		a.intervalSec === b.intervalSec &&
 		a.customCredentialsPath === b.customCredentialsPath &&
 		a.thresholds.warning === b.thresholds.warning &&
-		a.thresholds.critical === b.thresholds.critical
+		a.thresholds.critical === b.thresholds.critical &&
+		a.requestyThresholds?.balanceWarningUsd === b.requestyThresholds?.balanceWarningUsd &&
+		a.requestyThresholds?.balanceCriticalUsd === b.requestyThresholds?.balanceCriticalUsd &&
+		a.requestyThresholds?.spendWarningUsd === b.requestyThresholds?.spendWarningUsd &&
+		a.requestyThresholds?.spendCriticalUsd === b.requestyThresholds?.spendCriticalUsd
 	);
+}
+
+// --- Requesty settings -----------------------------------------------------
+
+/** Which money metric a Requesty key highlights. */
+export type RequestyMetric = "balance" | "spend24h" | "spend7d";
+
+/** Fully-resolved Requesty configuration (display metric + dollar thresholds). */
+export interface ResolvedRequestySettings {
+	requestyThresholds: RequestyThresholds;
+	requestyMetric: RequestyMetric;
+}
+
+/**
+ * Validate and normalize the Requesty raw settings into a coherent
+ * {@link ResolvedRequestySettings}. Never throws — bad input falls back to defaults.
+ *
+ * - Each $ threshold: clamped to a finite value ≥ 0 (2 decimals); missing/invalid → default.
+ * - Balance ordering (money running OUT — warn at $5, critical at $2): `warning ≥ critical`.
+ *   When violated the critical side is clamped *down* to warning, keeping the looser limit.
+ * - Spend ordering (money being USED — warn at $2, critical at $5): `critical ≥ warning`,
+ *   mirroring {@link resolveThresholds} by clamping critical up to warning when violated.
+ */
+export function resolveRequestySettings(settings: UsageActionSettings = {}): ResolvedRequestySettings {
+	const d = DEFAULT_REQUESTY_THRESHOLDS;
+	const balanceWarningUsd = clampUsd(settings.balanceWarningUsd, d.balanceWarningUsd);
+	let balanceCriticalUsd = clampUsd(settings.balanceCriticalUsd, d.balanceCriticalUsd);
+	const spendWarningUsd = clampUsd(settings.spendWarningUsd, d.spendWarningUsd);
+	let spendCriticalUsd = clampUsd(settings.spendCriticalUsd, d.spendCriticalUsd);
+
+	if (balanceWarningUsd < balanceCriticalUsd) {
+		balanceCriticalUsd = balanceWarningUsd;
+	}
+	spendCriticalUsd = Math.max(spendWarningUsd, spendCriticalUsd);
+
+	return {
+		requestyThresholds: { balanceWarningUsd, balanceCriticalUsd, spendWarningUsd, spendCriticalUsd },
+		requestyMetric: pickEnum<RequestyMetric>(settings.requestyMetric, ["balance", "spend24h", "spend7d"], "balance"),
+	};
+}
+
+export function sameRequestySettings(a: ResolvedRequestySettings, b: ResolvedRequestySettings): boolean {
+	return (
+		a.requestyMetric === b.requestyMetric &&
+		a.requestyThresholds.balanceWarningUsd === b.requestyThresholds.balanceWarningUsd &&
+		a.requestyThresholds.balanceCriticalUsd === b.requestyThresholds.balanceCriticalUsd &&
+		a.requestyThresholds.spendWarningUsd === b.requestyThresholds.spendWarningUsd &&
+		a.requestyThresholds.spendCriticalUsd === b.requestyThresholds.spendCriticalUsd
+	);
+}
+
+/** Clamp a $ value to a finite number ≥ 0 (2 decimals); missing/invalid → fallback. */
+function clampUsd(value: number | string | undefined, fallback: number): number {
+	const num = typeof value === "string" && value.trim() !== "" ? Number(value) : value;
+	if (typeof num !== "number" || !Number.isFinite(num)) {
+		return fallback;
+	}
+	return Math.max(0, Math.round(num * 100) / 100);
 }
 
 // --- Single-window action settings ----------------------------------------
