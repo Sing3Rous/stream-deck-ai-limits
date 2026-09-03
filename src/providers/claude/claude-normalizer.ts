@@ -1,7 +1,7 @@
 import { worstStatus } from "../status.ts";
 import type { StatusThresholds, UsageSnapshot, UsageWindow } from "../types.ts";
 import { DEFAULT_THRESHOLDS } from "../types.ts";
-import type { ClaudeUsageResponse, ClaudeUsageWindow } from "./claude-types.ts";
+import type { ClaudeLimitEntry, ClaudeUsageResponse, ClaudeUsageWindow } from "./claude-types.ts";
 
 /**
  * Convert a raw Claude usage window into the normalized {@link UsageWindow}.
@@ -18,6 +18,25 @@ function normalizeWindow(window: ClaudeUsageWindow | null | undefined): UsageWin
 	return { usedPercent, resetAt };
 }
 
+const FABLE_MODEL_NAME = "fable";
+
+/**
+ * Find the model-scoped weekly limit for Fable in the `limits` array and expose it in the same
+ * shape as the top-level windows. Missing array, no Fable entry, or malformed entry → `undefined`.
+ */
+function findFableWindow(limits: ClaudeLimitEntry[] | null | undefined): ClaudeUsageWindow | undefined {
+	if (!Array.isArray(limits)) {
+		return undefined;
+	}
+	const entry = limits.find(
+		(l) =>
+			l?.kind === "weekly_scoped" &&
+			typeof l.scope?.model?.display_name === "string" &&
+			l.scope.model.display_name.trim().toLowerCase() === FABLE_MODEL_NAME,
+	);
+	return entry ? { utilization: entry.percent, resets_at: entry.resets_at } : undefined;
+}
+
 /**
  * Normalize a raw Claude usage response into a provider-agnostic {@link UsageSnapshot}.
  *
@@ -31,11 +50,13 @@ export function normalizeClaudeUsage(
 ): UsageSnapshot {
 	const session = normalizeWindow(raw.five_hour);
 	const weekly = normalizeWindow(raw.seven_day);
+	const fable = normalizeWindow(findFableWindow(raw.limits));
 
 	return {
 		provider: "claude",
 		session,
 		weekly,
+		fable,
 		status: worstStatus(session, weekly, thresholds),
 		updatedAt: now.toISOString(),
 		stale: false,

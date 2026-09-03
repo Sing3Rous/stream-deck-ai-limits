@@ -41,6 +41,11 @@ export interface UsageSnapshot {
 	session: UsageWindow;
 	/** Long window — Claude: `seven_day`. */
 	weekly: UsageWindow;
+	/**
+	 * Model-scoped weekly window — Claude: the `weekly_scoped` limit for the Fable model.
+	 * Only the Claude provider sets it; absent for providers without a per-model window.
+	 */
+	fable?: UsageWindow;
 	status: UsageStatus;
 	/** ISO timestamp of when this snapshot was produced. */
 	updatedAt: string;

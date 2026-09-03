@@ -151,3 +151,19 @@ test("stale shows a subtle dot but keeps the number", () => {
 	assert.match(svg, />18</);
 	assert.match(svg, /<circle/); // the stale dot
 });
+
+test("fable window picks the fable percentage and label", () => {
+	const svg = renderSingleWindowIcon(
+		snapshot({ fable: { usedPercent: 37, resetAt: "2026-06-03T10:00:00Z" } }),
+		opts({ window: "fable" }),
+	);
+	assert.match(svg, />FABLE</);
+	assert.match(svg, />37</);
+	assert.doesNotMatch(svg, />18</);
+	assert.doesNotMatch(svg, />73</);
+});
+
+test("fable window without data shows No Data", () => {
+	const svg = renderSingleWindowIcon(snapshot(), opts({ window: "fable" }));
+	assert.match(svg, /No Data/);
+});

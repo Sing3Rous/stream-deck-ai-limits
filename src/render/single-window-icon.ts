@@ -31,7 +31,7 @@ export function renderSingleWindowIcon(snapshot: UsageSnapshot, options: SingleW
 		return renderMessage(status, label);
 	}
 
-	const win = options.window === "weekly" ? snapshot.weekly : snapshot.session;
+	const win = selectWindow(snapshot, options.window);
 	if (win.usedPercent === null) {
 		return renderMessage("error", label, "No Data");
 	}
@@ -175,8 +175,26 @@ function providerLabel(provider: UsageSnapshot["provider"]): string {
 	return provider === "codex" ? "Codex" : "Claude";
 }
 
+function selectWindow(snapshot: UsageSnapshot, window: WindowKind): UsageWindow {
+	switch (window) {
+		case "weekly":
+			return snapshot.weekly;
+		case "fable":
+			return snapshot.fable ?? { usedPercent: null, resetAt: null };
+		default:
+			return snapshot.session;
+	}
+}
+
 function windowLabel(window: WindowKind): string {
-	return window === "weekly" ? "7D" : "5H";
+	switch (window) {
+		case "weekly":
+			return "7D";
+		case "fable":
+			return "FABLE";
+		default:
+			return "5H";
+	}
 }
 
 function clampPct(percent: number): number {

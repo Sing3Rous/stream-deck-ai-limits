@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
 	resolveUsageSettings,
+	resolveSingleWindowSettings,
 	DEFAULT_INTERVAL_SEC,
 	MIN_INTERVAL_SEC,
 	MAX_INTERVAL_SEC,
@@ -63,4 +64,15 @@ test("valid full settings pass through", () => {
 	assert.equal(r.thresholds.warning, 60);
 	assert.equal(r.thresholds.critical, 85);
 	assert.equal(r.customCredentialsPath, "/home/u/.claude/.credentials.json");
+});
+
+test("single-window: fable window is accepted for Claude", () => {
+	const r = resolveSingleWindowSettings({ provider: "claude", window: "fable" });
+	assert.equal(r.window, "fable");
+});
+
+test("single-window: fable window falls back to weekly for Codex", () => {
+	const r = resolveSingleWindowSettings({ provider: "codex", window: "fable" });
+	assert.equal(r.provider, "codex");
+	assert.equal(r.window, "weekly");
 });

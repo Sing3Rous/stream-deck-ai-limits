@@ -71,7 +71,7 @@ Select a key to configure it:
 - **Credentials path** — optional override if your credentials file is in a non-standard location.
   Leave empty to use the default.
 
-The **single-window** action adds: **Provider** (Claude/Codex), **Window** (5-hour / weekly),
+The **single-window** action adds: **Provider** (Claude/Codex), **Window** (5-hour / weekly / Fable weekly — Claude only),
 **Reset info** (date-time / countdown / both / hidden), **Date format**, and **Provider accent**
 (colored frame / tinted background / none).
 
