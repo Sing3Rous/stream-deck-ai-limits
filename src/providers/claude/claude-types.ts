@@ -18,9 +18,28 @@ export interface ClaudeUsageWindow {
 	resets_at?: string | null;
 }
 
+/**
+ * One entry of the `limits` array. `weekly_scoped` entries carry a `scope.model` naming the
+ * model the window applies to (e.g. Fable) — the only place the per-model weekly limit appears.
+ */
+export interface ClaudeLimitEntry {
+	kind?: string | null;
+	group?: string | null;
+	/** Percentage used, 0..100. */
+	percent?: number | null;
+	resets_at?: string | null;
+	scope?: {
+		model?: { id?: string | null; display_name?: string | null } | null;
+		surface?: string | null;
+	} | null;
+	is_active?: boolean | null;
+}
+
 export interface ClaudeUsageResponse {
 	five_hour?: ClaudeUsageWindow | null;
 	seven_day?: ClaudeUsageWindow | null;
+	/** Per-limit breakdown, including model-scoped weekly windows. */
+	limits?: ClaudeLimitEntry[] | null;
 	// Known sibling windows — not consumed by the MVP, kept for documentation/forward-compat.
 	seven_day_opus?: ClaudeUsageWindow | null;
 	seven_day_sonnet?: ClaudeUsageWindow | null;

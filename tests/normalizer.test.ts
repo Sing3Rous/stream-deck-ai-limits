@@ -75,3 +75,44 @@ test("respects custom thresholds", () => {
 	);
 	assert.equal(snap.status, "warning");
 });
+
+test("fable window comes from the weekly_scoped Fable entry in `limits`", () => {
+	const snap = normalize({
+		five_hour: { utilization: 1 },
+		seven_day: { utilization: 0 },
+		limits: [
+			{ kind: "session", group: "session", percent: 1, resets_at: "2026-09-03T16:40:00Z" },
+			{ kind: "weekly_all", group: "weekly", percent: 0, resets_at: "2026-09-10T03:00:00Z" },
+			{
+				kind: "weekly_scoped",
+				group: "weekly",
+				percent: 42.6,
+				resets_at: "2026-09-10T03:00:00Z",
+				scope: { model: { id: null, display_name: "Fable" }, surface: null },
+			},
+		],
+	});
+	assert.equal(snap.fable?.usedPercent, 43);
+	assert.equal(snap.fable?.resetAt, "2026-09-10T03:00:00Z");
+});
+
+test("fable window is empty when `limits` is missing or has no Fable entry", () => {
+	const none = normalize({ five_hour: { utilization: 1 }, seven_day: { utilization: 0 } });
+	assert.deepEqual(none.fable, { usedPercent: null, resetAt: null });
+
+	const other = normalize({
+		five_hour: { utilization: 1 },
+		seven_day: { utilization: 0 },
+		limits: [{ kind: "weekly_scoped", percent: 90, scope: { model: { display_name: "Opus" } } }],
+	});
+	assert.deepEqual(other.fable, { usedPercent: null, resetAt: null });
+});
+
+test("fable window does not affect the overall status", () => {
+	const snap = normalize({
+		five_hour: { utilization: 10 },
+		seven_day: { utilization: 20 },
+		limits: [{ kind: "weekly_scoped", percent: 100, scope: { model: { display_name: "Fable" } } }],
+	});
+	assert.equal(snap.status, "ok");
+});

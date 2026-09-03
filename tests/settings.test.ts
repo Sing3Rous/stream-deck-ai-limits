@@ -96,3 +96,19 @@ test("single-window: copilot is accepted from the provider picker", () => {
 	assert.equal(r.provider, "copilot");
 	assert.equal(r.window, "session");
 });
+
+test("single-window: copilot ignores a fable window too", () => {
+	const r = resolveSingleWindowSettings({ provider: "copilot", window: "fable" });
+	assert.equal(r.window, "session");
+});
+
+test("single-window: fable window is accepted for Claude", () => {
+	const r = resolveSingleWindowSettings({ provider: "claude", window: "fable" });
+	assert.equal(r.window, "fable");
+});
+
+test("single-window: fable window falls back to weekly for Codex", () => {
+	const r = resolveSingleWindowSettings({ provider: "codex", window: "fable" });
+	assert.equal(r.provider, "codex");
+	assert.equal(r.window, "weekly");
+});

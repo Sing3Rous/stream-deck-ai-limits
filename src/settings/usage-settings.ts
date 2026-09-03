@@ -94,8 +94,8 @@ export function sameResolvedSettings(a: ResolvedUsageSettings, b: ResolvedUsageS
 
 // --- Single-window action settings ----------------------------------------
 
-/** Which window the single-window key shows. */
-export type WindowKind = "session" | "weekly";
+/** Which window the single-window key shows. `fable` is the model-scoped weekly window (Claude only). */
+export type WindowKind = "session" | "weekly" | "fable";
 /** What reset info to show under the percentage. */
 export type ResetDisplay = "datetime" | "countdown" | "both" | "none";
 /** How to tint the key with the provider's brand color. */
@@ -118,10 +118,17 @@ function pickEnum<T extends string>(value: string | undefined, allowed: readonly
 /** Validate the single-window display settings, falling back to sensible defaults. */
 export function resolveSingleWindowSettings(settings: UsageActionSettings = {}): ResolvedSingleWindowSettings {
 	const provider = pickEnum<UsageProvider>(settings.provider, ["claude", "codex", "copilot"], "claude");
+	let window = pickEnum<WindowKind>(settings.window, ["session", "weekly", "fable"], "session");
+	if (provider === "copilot") {
+		// Copilot has no weekly quota — its session window IS the monthly premium usage.
+		window = "session";
+	} else if (window === "fable" && provider !== "claude") {
+		// Only Claude has a model-scoped weekly window; fall back to the plain weekly one.
+		window = "weekly";
+	}
 	return {
 		provider,
-		// Copilot has no weekly quota — its session window IS the monthly premium usage.
-		window: provider === "copilot" ? "session" : pickEnum<WindowKind>(settings.window, ["session", "weekly"], "session"),
+		window,
 		resetDisplay: pickEnum<ResetDisplay>(settings.resetDisplay, ["datetime", "countdown", "both", "none"], "datetime"),
 		dateFormat: pickEnum<DateFormat>(settings.dateFormat, DATE_FORMATS, "day-month"),
 		providerAccent: pickEnum<ProviderAccent>(settings.providerAccent, ["frame", "tint", "none"], "frame"),
