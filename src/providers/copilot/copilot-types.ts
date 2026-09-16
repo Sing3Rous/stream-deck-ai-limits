@@ -35,7 +35,10 @@ export interface CopilotQuotaSnapshot {
 export interface CopilotUsageResponse {
 	/** e.g. `"individual_pro"` — informational only, not used by the plugin. */
 	copilot_plan?: string | null;
-	/** Reset date without a time, e.g. `"2026-09-01"`. */
+	/**
+	 * Reset date without a time, e.g. `"2026-09-01"`. Documented as part of the response but not
+	 * read by the plugin — {@link quota_reset_date_utc} carries the same reset unambiguously.
+	 */
 	quota_reset_date?: string | null;
 	/** Reset timestamp (preferred source), e.g. `"2026-09-01T00:00:00Z"`. */
 	quota_reset_date_utc?: string | null;

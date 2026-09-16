@@ -178,6 +178,16 @@ async function readCustomTokenFile(filePath: string): Promise<string> {
 /**
  * Run `gh auth token --hostname github.com` (5 s timeout, no shell) and return the trimmed token.
  *
+ * `gh` is resolved through PATH, unlike the Keychain reader's hardcoded `/usr/bin/security`:
+ * the GitHub CLI has no fixed install location (Homebrew, winget, scoop, nix and manual
+ * installs all differ), so pinning a path would break more setups than it protects. A binary
+ * planted earlier in PATH would therefore receive this call — accepted, because writing to a
+ * PATH directory already implies enough access to read the same token from `hosts.yml`
+ * directly. `shell: false` still prevents argument interpretation.
+ *
+ * The raw error is swallowed rather than wrapped: on a nonzero exit `execFile` puts the child's
+ * stdout — here, the token — into `err.message`.
+ *
  * @throws {UsageError} `auth_required` on any failure (gh missing, not logged in, or timeout).
  */
 export async function readGhAuthToken(execImpl: GhAuthTokenExec = defaultGhAuthTokenExec): Promise<string> {
