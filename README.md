@@ -80,8 +80,9 @@ Select a key to configure it:
   Leave empty to use the default. Setting this opts out of the macOS Keychain lookup: an explicit
   path is taken at face value, so a missing file there is reported as an error.
 
-The **single-window** action adds: **Provider** (Claude/Codex/Copilot), **Window** (5-hour / weekly —
-Claude and Codex only; a Copilot key always shows its monthly quota and ignores this setting),
+The **single-window** action adds: **Provider** (Claude/Codex/Copilot), **Window** (5-hour / weekly,
+plus Fable 7-day for Claude only; a Copilot key always shows its monthly quota and ignores this
+setting),
 **Reset info** (date-time / countdown / both / hidden), **Date format**, and **Provider accent**
 (colored frame / tinted background / none).
 

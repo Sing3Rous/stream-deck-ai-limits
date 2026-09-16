@@ -75,3 +75,79 @@ test("respects custom thresholds", () => {
 	);
 	assert.equal(snap.status, "warning");
 });
+
+test("fable window comes from the weekly_scoped Fable entry in `limits`", () => {
+	const snap = normalize({
+		five_hour: { utilization: 1 },
+		seven_day: { utilization: 0 },
+		limits: [
+			{ kind: "session", group: "session", percent: 1, resets_at: "2026-09-03T16:40:00Z" },
+			{ kind: "weekly_all", group: "weekly", percent: 0, resets_at: "2026-09-10T03:00:00Z" },
+			{
+				kind: "weekly_scoped",
+				group: "weekly",
+				percent: 42.6,
+				resets_at: "2026-09-10T03:00:00Z",
+				scope: { model: { id: null, display_name: "Fable" }, surface: null },
+			},
+		],
+	});
+	assert.equal(snap.fable?.usedPercent, 43);
+	assert.equal(snap.fable?.resetAt, "2026-09-10T03:00:00Z");
+});
+
+test("fable window is empty when `limits` is missing or has no Fable entry", () => {
+	const none = normalize({ five_hour: { utilization: 1 }, seven_day: { utilization: 0 } });
+	assert.deepEqual(none.fable, { usedPercent: null, resetAt: null });
+
+	const other = normalize({
+		five_hour: { utilization: 1 },
+		seven_day: { utilization: 0 },
+		limits: [{ kind: "weekly_scoped", percent: 90, scope: { model: { display_name: "Opus" } } }],
+	});
+	assert.deepEqual(other.fable, { usedPercent: null, resetAt: null });
+});
+
+test("fable window is found for a versioned model name", () => {
+	// The endpoint is unofficial: a later response naming the model "Fable 5.1", or carrying only
+	// a versioned id, must keep working without a plugin release.
+	for (const model of [
+		{ display_name: "Fable 5.1" },
+		{ display_name: "FABLE 6" },
+		{ id: "claude-fable-5-1", display_name: null },
+		{ id: "claude-fable-6" },
+	]) {
+		const snap = normalize({
+			five_hour: { utilization: 1 },
+			seven_day: { utilization: 0 },
+			limits: [{ kind: "weekly_scoped", percent: 42, scope: { model } }],
+		});
+		assert.equal(snap.fable?.usedPercent, 42, `should match ${JSON.stringify(model)}`);
+	}
+});
+
+test("fable matching does not catch other models or lookalike names", () => {
+	for (const model of [
+		{ display_name: "Opus" },
+		{ display_name: "Sonnet 4.5" },
+		// A prefix match must not swallow an unrelated name that merely starts with the letters.
+		{ display_name: "Fabletown" },
+		{ id: "claude-opus-5", display_name: null },
+	]) {
+		const snap = normalize({
+			five_hour: { utilization: 1 },
+			seven_day: { utilization: 0 },
+			limits: [{ kind: "weekly_scoped", percent: 90, scope: { model } }],
+		});
+		assert.deepEqual(snap.fable, { usedPercent: null, resetAt: null }, `should not match ${JSON.stringify(model)}`);
+	}
+});
+
+test("fable window does not affect the overall status", () => {
+	const snap = normalize({
+		five_hour: { utilization: 10 },
+		seven_day: { utilization: 20 },
+		limits: [{ kind: "weekly_scoped", percent: 100, scope: { model: { display_name: "Fable" } } }],
+	});
+	assert.equal(snap.status, "ok");
+});
