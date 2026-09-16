@@ -1,4 +1,4 @@
-# AI Coding Plan Usage — Stream Deck plugin
+# Claude & Codex Usage — Stream Deck plugin
 
 Show your **Claude Code**, **Codex CLI**, and **GitHub Copilot** usage limits right on your Elgato
 Stream Deck keys.
@@ -51,7 +51,7 @@ You only need the CLI for the provider(s) you want to display.
 1. Download the latest `com.singerous.ai-limits.streamDeckPlugin` from the
    [Releases](https://github.com/Sing3Rous/stream-deck-ai-limits/releases) page.
 2. Double-click it — the Stream Deck app installs it.
-3. Find the **AI Coding Plan Usage** category in the actions list and drag an action onto a key.
+3. Find the **Claude & Codex Usage** category in the actions list and drag an action onto a key.
 
 ### From source (development)
 

@@ -1,5 +1,5 @@
 {
-	"Name": "AI Coding Plan Usage",
+	"Name": "Claude & Codex Usage",
 	"Version": "0.1.0.0",
 	"Author": "singerous",
 	"Actions": [
@@ -68,7 +68,7 @@
 			]
 		}
 	],
-	"Category": "AI Coding Plan Usage",
+	"Category": "Claude & Codex Usage",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
 	"Description": "Show Claude Code, Codex CLI, and GitHub Copilot usage limits on your keys.",
