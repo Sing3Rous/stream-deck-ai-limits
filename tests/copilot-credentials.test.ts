@@ -72,6 +72,29 @@ test("parseHostsYml returns null when github.com has no oauth_token", () => {
 	assert.equal(parseHostsYml("github.com:\n    user: someone\n"), null);
 });
 
+test("parseHostsYml strips YAML quotes around the token", () => {
+	// A quoted value carried through verbatim would be sent as `Bearer "gho_..."` and rejected.
+	assert.equal(
+		parseHostsYml('github.com:\n    oauth_token: "FAKE_DQ_TOKEN_synthetic"\n'),
+		"FAKE_DQ_TOKEN_synthetic",
+	);
+	assert.equal(
+		parseHostsYml("github.com:\n    oauth_token: 'FAKE_SQ_TOKEN_synthetic'\n"),
+		"FAKE_SQ_TOKEN_synthetic",
+	);
+});
+
+test("parseHostsYml leaves an unmatched or inner quote alone", () => {
+	assert.equal(
+		parseHostsYml('github.com:\n    oauth_token: "FAKE_UNBALANCED\n'),
+		'"FAKE_UNBALANCED',
+	);
+	assert.equal(
+		parseHostsYml("github.com:\n    oauth_token: FAKE_TOKEN\"WITH'QUOTES\n"),
+		"FAKE_TOKEN\"WITH'QUOTES",
+	);
+});
+
 // --- custom path -----------------------------------------------------------
 
 test("custom path with a bare token is read", async () => {

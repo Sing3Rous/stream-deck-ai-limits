@@ -36,6 +36,22 @@ export interface CopilotCredentials {
  * key, then the first `oauth_token:` line inside that (indented) section. Returns `null` when
  * there is no github.com host or it has no token. The token is never included in errors.
  */
+/**
+ * Strip one layer of matching YAML quotes. `gh` writes the token bare, but YAML permits
+ * `oauth_token: "gho_..."`, and a quoted value carried through verbatim would be sent as
+ * `Bearer "gho_..."` and rejected as a 401 that looks like a login problem.
+ *
+ * Escape sequences inside double quotes are not unescaped: a real token is alphanumeric with
+ * underscores, so a backslash in one means it is not a token this plugin can use anyway.
+ */
+function unquote(value: string): string {
+	const quote = value[0];
+	if ((quote === '"' || quote === "'") && value.length >= 2 && value.endsWith(quote)) {
+		return value.slice(1, -1);
+	}
+	return value;
+}
+
 export function parseHostsYml(contents: string): string | null {
 	const lines = contents.split(/\r?\n/);
 	for (let i = 0; i < lines.length; i++) {
@@ -54,7 +70,7 @@ export function parseHostsYml(contents: string): string | null {
 			}
 			const match = /^\s*oauth_token:\s*(\S+)\s*$/.exec(line);
 			if (match) {
-				return match[1];
+				return unquote(match[1]);
 			}
 		}
 	}
