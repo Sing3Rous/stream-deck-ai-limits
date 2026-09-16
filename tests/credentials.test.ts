@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -136,6 +136,73 @@ test("macOS: empty Keychain → auth_required", async () => {
 				}),
 			(err: unknown) => isUsageError(err) && err.status === "auth_required",
 		);
+	});
+});
+
+test("a throwing Keychain reader surfaces auth_required, not the raw error", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					// execFile puts the child's stdout — the token — into err.message, so a reader
+					// that throws must never reach the caller unwrapped.
+					readKeychainBlob: async () => {
+						throw new Error("KC_CANARY_FROM_STDOUT");
+					},
+				}),
+			(err: unknown) => {
+				assert.ok(isUsageError(err), "must be a UsageError, not a raw Error");
+				assert.equal(err.status, "auth_required");
+				assert.doesNotMatch(err.message, /KC_CANARY_FROM_STDOUT/);
+				return true;
+			},
+		);
+	});
+});
+
+test("a non-ENOENT file error never falls back to the Keychain", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		// A directory where the file should be (EISDIR) is a broken setup, not a missing login.
+		await mkdir(resolveClaudeCredentialsPath(), { recursive: true });
+		let consulted = false;
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					readKeychainBlob: async () => {
+						consulted = true;
+						return KEYCHAIN_BLOB;
+					},
+				}),
+			(err: unknown) => isUsageError(err) && err.status === "auth_required",
+		);
+		assert.equal(consulted, false, "only a missing file may fall back");
+	});
+});
+
+test("an existing but empty file does not fall back to the Keychain", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		const file = resolveClaudeCredentialsPath();
+		await mkdir(path.dirname(file), { recursive: true });
+		await writeFile(file, "", "utf-8");
+		let consulted = false;
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					readKeychainBlob: async () => {
+						consulted = true;
+						return KEYCHAIN_BLOB;
+					},
+				}),
+			(err: unknown) => {
+				assert.ok(isUsageError(err));
+				assert.match(err.message, /file/, "the message must name the file, not the Keychain");
+				return true;
+			},
+		);
+		assert.equal(consulted, false, "a present-but-broken file is not a missing login");
 	});
 });
 

@@ -39,6 +39,50 @@ interface ReadClaudeCredentialsOptions {
 	platform?: NodeJS.Platform;
 }
 
+/** A credentials blob and where it came from, for secret-free error messages. */
+interface CredentialsBlob {
+	contents: string;
+	/** Reads as `Claude credentials <source> is not valid JSON.` */
+	source: "file" | "Keychain item";
+}
+
+/**
+ * Fetch the raw credentials blob: the file, or the Keychain when the file is absent and
+ * `allowKeychain` is set.
+ *
+ * @throws {UsageError} `auth_required` when neither source yields a blob.
+ */
+async function readCredentialsBlob(
+	filePath: string,
+	allowKeychain: boolean,
+	readKeychainBlob: () => Promise<string | null>,
+): Promise<CredentialsBlob> {
+	try {
+		return { contents: await readFile(filePath, "utf-8"), source: "file" };
+	} catch (err) {
+		const code = (err as NodeJS.ErrnoException)?.code;
+		if (code !== "ENOENT") {
+			throw authRequired("Could not read Claude credentials file.");
+		}
+	}
+
+	// `readClaudeKeychainBlob` reports "no credentials" as null rather than by throwing, but it
+	// is an injectable seam: a future reader that throws must not escape as a raw Error, because
+	// `execFile` puts the child's stdout — the token — into `err.message`.
+	let blob: string | null = null;
+	if (allowKeychain) {
+		try {
+			blob = await readKeychainBlob();
+		} catch {
+			blob = null;
+		}
+	}
+	if (blob === null) {
+		throw authRequired("Claude credentials not found. Log in with Claude Code first.");
+	}
+	return { contents: blob, source: "Keychain item" };
+}
+
 /**
  * Read and parse Claude Code credentials.
  *
@@ -63,22 +107,11 @@ export async function readClaudeCredentials(
 	const filePath = resolveClaudeCredentialsPath(customPath);
 	const usingDefaultPath = !customPath?.trim();
 
-	let contents: string;
-	let source = "file";
-	try {
-		contents = await readFile(filePath, "utf-8");
-	} catch (err) {
-		const code = (err as NodeJS.ErrnoException)?.code;
-		if (code !== "ENOENT") {
-			throw authRequired("Could not read Claude credentials file.");
-		}
-		const blob = usingDefaultPath && platform === "darwin" ? await readKeychainBlob() : null;
-		if (blob === null) {
-			throw authRequired("Claude credentials not found. Log in with Claude Code first.");
-		}
-		contents = blob;
-		source = "Keychain item";
-	}
+	const { contents, source } = await readCredentialsBlob(
+		filePath,
+		usingDefaultPath && platform === "darwin",
+		readKeychainBlob,
+	);
 
 	let parsed: RawCredentialsFile;
 	try {
