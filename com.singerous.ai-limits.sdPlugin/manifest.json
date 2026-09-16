@@ -1,6 +1,6 @@
 {
 	"Name": "Claude & Codex Usage",
-	"Version": "0.1.0.0",
+	"Version": "0.2.0.0",
 	"Author": "singerous",
 	"Actions": [
 		{
@@ -88,8 +88,7 @@
 		}
 	],
 	"Nodejs": {
-		"Version": "20",
-		"Debug": "enabled"
+		"Version": "20"
 	},
 	"UUID": "com.singerous.ai-limits"
 }

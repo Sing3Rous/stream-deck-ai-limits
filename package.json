@@ -1,6 +1,6 @@
 {
     "name": "stream-deck-ai-limits",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "description": "Elgato Stream Deck plugin that shows Claude Code, Codex CLI, and GitHub Copilot usage limits on your keys.",
     "keywords": [
         "stream-deck",
