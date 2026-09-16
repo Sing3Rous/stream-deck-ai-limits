@@ -29,8 +29,9 @@ Color bands (configurable): `0–69%` green · `70–89%` yellow · `90–99%` o
 ## Requirements
 
 - **Elgato Stream Deck** app 6.5+ (Windows 10+ or macOS 12+).
-- For Claude usage: **[Claude Code](https://www.anthropic.com/claude-code)** installed and logged in
-  (`~/.claude/.credentials.json` must exist).
+- For Claude usage: **[Claude Code](https://www.anthropic.com/claude-code)** installed and logged in.
+  On Windows and Linux that means `~/.claude/.credentials.json` must exist; on macOS, Claude Code
+  stores its credentials in the login Keychain instead and the plugin reads them from there.
 - For Codex usage: **[Codex CLI](https://developers.openai.com/codex)** installed and logged in with a
   ChatGPT account (`~/.codex/auth.json` must exist).
 
@@ -69,7 +70,8 @@ Select a key to configure it:
   purpose; see [Polling & rate limits](#polling--rate-limits).
 - **Warning / Critical thresholds** — the percentages at which a bar turns yellow / orange.
 - **Credentials path** — optional override if your credentials file is in a non-standard location.
-  Leave empty to use the default.
+  Leave empty to use the default. Setting this opts out of the macOS Keychain lookup: an explicit
+  path is taken at face value, so a missing file there is reported as an error.
 
 The **single-window** action adds: **Provider** (Claude/Codex), **Window** (5-hour / weekly),
 **Reset info** (date-time / countdown / both / hidden), **Date format**, and **Provider accent**
