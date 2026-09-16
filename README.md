@@ -3,9 +3,11 @@
 Show your **Claude Code**, **Codex CLI**, and **GitHub Copilot** usage limits right on your Elgato
 Stream Deck keys.
 
-Each key displays how much of your rolling **5-hour**, **weekly**, or **monthly premium** quota you've
-used, color-coded by how close you are to the limit, and updates automatically. No tokens to paste —
-the plugin reads the credentials the official CLIs already created when you logged in.
+Each key displays how much of your quota you've used, color-coded by how close you are to the
+limit, and updates automatically. The windows differ per provider: Claude and Codex have a rolling
+**5-hour** and **weekly** quota, while Copilot instead has a single **monthly premium-interactions**
+quota. No tokens to paste — the plugin reads the credentials the official CLIs already created when
+you logged in.
 
 > [!WARNING]
 > This plugin reads usage from **unofficial / internal endpoints** used by the Claude Code, Codex,
@@ -78,14 +80,22 @@ Select a key to configure it:
   Leave empty to use the default. Setting this opts out of the macOS Keychain lookup: an explicit
   path is taken at face value, so a missing file there is reported as an error.
 
-The **single-window** action adds: **Provider** (Claude/Codex/Copilot), **Window** (5-hour / weekly;
-Copilot is always the monthly session), **Reset info** (date-time / countdown / both / hidden),
-**Date format**, and **Provider accent** (colored frame / tinted background / none).
+The **single-window** action adds: **Provider** (Claude/Codex/Copilot), **Window** (5-hour / weekly —
+Claude and Codex only; a Copilot key always shows its monthly quota and ignores this setting),
+**Reset info** (date-time / countdown / both / hidden), **Date format**, and **Provider accent**
+(colored frame / tinted background / none).
 
 ### Copilot
 
 The Copilot action shows your monthly **premium interactions** quota: a bar for how much of the
 month you've used, plus a "**N days left**" countdown to the quota reset.
+
+**This window is specific to Copilot — it has no equivalent for Claude or Codex.** Premium
+interactions are the requests GitHub meters against your plan (the premium models and agent modes);
+ordinary completions and base-model chat are unmetered and are not shown here. Unlike Claude's and
+Codex's rolling 5-hour and weekly windows, this quota is a **calendar-month allowance tied to your
+billing cycle**, which is why a Copilot key shows one bar rather than two, and why the single-window
+action fixes its window to the session.
 
 - **Endpoint** — this reads the **unofficial internal endpoint**
   `GET https://api.github.com/copilot_internal/user` (the same one the GitHub CLI's Copilot
@@ -130,6 +140,15 @@ Pressing a key forces an immediate refresh (subject to the throttle above).
   does **not** modify your credentials files.
 - Tokens and `Authorization` headers are **never logged**.
 - Usage data is sent **only** to the provider's own usage endpoint — nowhere else. No telemetry.
+- On macOS, Claude's Keychain item is read via the absolute path `/usr/bin/security`, so a binary
+  of that name earlier in your `PATH` cannot intercept the call.
+- **`gh` is resolved through `PATH`**, unlike the above. The GitHub CLI has no fixed install
+  location (Homebrew, winget, scoop, nix and manual installs all differ), so pinning one path would
+  break more setups than it protects. This is a deliberate trade-off: writing to a `PATH` directory
+  already implies enough access to read the same token straight out of `hosts.yml`, so the
+  substitution gains an attacker nothing they could not do more simply. If that trade-off doesn't
+  suit your machine, set an explicit **Credentials path** in the Property Inspector — that skips
+  the `gh` subprocess entirely.
 
 ---
 
@@ -152,8 +171,8 @@ review before sharing.
 - Built on **unofficial endpoints** — may break if the CLIs change internally.
 - Codex token **auto-refresh is not implemented** yet; if the Codex session expires you'll see
   "Login Required" until you re-run the Codex CLI.
-- The Copilot endpoint requires **premium plan usage** data — free-plan or unlimited responses show
-  **No Data**, with no countdown.
+- The Copilot key needs a **metered premium-interactions quota** to draw a bar. Plans that report the
+  quota as unlimited show **No Data**, with no countdown — there is no percentage to display.
 - The plugin pins the Stream Deck **Node 20** runtime (the Node 24 runtime mishandles a header the
   Codex endpoint requires).
 
