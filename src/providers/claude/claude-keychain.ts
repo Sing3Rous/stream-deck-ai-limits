@@ -17,7 +17,7 @@ const SECURITY_BIN = "/usr/bin/security";
 const KEYCHAIN_TIMEOUT_MS = 5_000;
 
 /** The blob is a few KB in practice; cap it so a pathological item can't balloon memory. */
-const KEYCHAIN_MAX_BYTES = 1024 * 1024;
+const KEYCHAIN_MAX_BYTES = 64 * 1024;
 
 /**
  * Read Claude Code's credential blob from the macOS login Keychain.

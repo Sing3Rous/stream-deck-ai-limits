@@ -27,6 +27,19 @@ interface RawCredentialsFile {
 }
 
 /**
+ * Test seams for {@link readClaudeCredentials}.
+ *
+ * The platform is injected rather than read from `process.platform` at the call site so the
+ * macOS fallback is exercised by the suite on every OS, not skipped everywhere but a Mac.
+ */
+interface ReadClaudeCredentialsOptions {
+	/** Keychain reader override. Defaults to {@link readClaudeKeychainBlob}. */
+	readKeychainBlob?: () => Promise<string | null>;
+	/** Platform override. Defaults to `process.platform`. */
+	platform?: NodeJS.Platform;
+}
+
+/**
  * Read and parse Claude Code credentials.
  *
  * Normally this reads `~/.claude/.credentials.json`. On macOS that file does not exist —
@@ -37,18 +50,21 @@ interface RawCredentialsFile {
  *
  * @param customPath Optional override path (Property Inspector). Defaults to
  *   `~/.claude/.credentials.json`.
- * @param readKeychainBlob Injectable Keychain reader, for tests.
+ * @param options Test seams; production callers omit this.
  * @throws {UsageError} with status `auth_required` if the credentials are missing, unreadable,
  *   malformed, or contain no access token. Error messages never include token material.
  */
 export async function readClaudeCredentials(
 	customPath?: string,
-	readKeychainBlob: () => Promise<string | null> = readClaudeKeychainBlob,
+	options: ReadClaudeCredentialsOptions = {},
 ): Promise<ClaudeCredentials> {
+	const readKeychainBlob = options.readKeychainBlob ?? readClaudeKeychainBlob;
+	const platform = options.platform ?? process.platform;
 	const filePath = resolveClaudeCredentialsPath(customPath);
 	const usingDefaultPath = !customPath?.trim();
 
 	let contents: string;
+	let source = "file";
 	try {
 		contents = await readFile(filePath, "utf-8");
 	} catch (err) {
@@ -56,25 +72,25 @@ export async function readClaudeCredentials(
 		if (code !== "ENOENT") {
 			throw authRequired("Could not read Claude credentials file.");
 		}
-		const blob =
-			usingDefaultPath && process.platform === "darwin" ? await readKeychainBlob() : null;
+		const blob = usingDefaultPath && platform === "darwin" ? await readKeychainBlob() : null;
 		if (blob === null) {
 			throw authRequired("Claude credentials not found. Log in with Claude Code first.");
 		}
 		contents = blob;
+		source = "Keychain item";
 	}
 
 	let parsed: RawCredentialsFile;
 	try {
 		parsed = JSON.parse(contents) as RawCredentialsFile;
 	} catch {
-		throw authRequired("Claude credentials are not valid JSON.");
+		throw authRequired(`Claude credentials ${source} is not valid JSON.`);
 	}
 
 	const oauth = parsed?.claudeAiOauth;
 	const accessToken = typeof oauth?.accessToken === "string" ? oauth.accessToken : "";
 	if (!accessToken) {
-		throw authRequired("Claude credentials have no access token.");
+		throw authRequired(`Claude credentials ${source} has no access token.`);
 	}
 
 	return {

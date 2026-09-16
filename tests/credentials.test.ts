@@ -87,42 +87,73 @@ const KEYCHAIN_BLOB = JSON.stringify({
 	},
 });
 
-/** The default path, guaranteed absent, so the Keychain fallback is what gets exercised. */
+/**
+ * Run `fn` with the home directory pointed at an empty temp dir, so the default credentials
+ * path is guaranteed absent and the fallback is what gets exercised. `$USERPROFILE` covers
+ * `os.homedir()` on Windows, `$HOME` elsewhere.
+ */
 async function withoutDefaultCredentialsFile(run: () => Promise<void>): Promise<void> {
 	const dir = await mkdtemp(path.join(os.tmpdir(), "sdai-home-"));
-	const realHomedir = os.homedir;
-	Object.defineProperty(os, "homedir", { value: () => dir, configurable: true });
+	const saved = { home: process.env.HOME, userProfile: process.env.USERPROFILE };
+	process.env.HOME = dir;
+	process.env.USERPROFILE = dir;
 	try {
 		await run();
 	} finally {
-		Object.defineProperty(os, "homedir", { value: realHomedir, configurable: true });
+		restoreEnv("HOME", saved.home);
+		restoreEnv("USERPROFILE", saved.userProfile);
 		await rm(dir, { recursive: true, force: true });
 	}
 }
 
-test("macOS: missing default file falls back to the Keychain", async (t) => {
-	if (process.platform !== "darwin") {
-		t.skip("Keychain fallback is macOS-only");
-		return;
+function restoreEnv(key: string, value: string | undefined): void {
+	if (value === undefined) {
+		delete process.env[key];
+	} else {
+		process.env[key] = value;
 	}
+}
+
+test("macOS: missing default file falls back to the Keychain", async () => {
 	await withoutDefaultCredentialsFile(async () => {
-		const creds = await readClaudeCredentials(undefined, async () => KEYCHAIN_BLOB);
+		const creds = await readClaudeCredentials(undefined, {
+			platform: "darwin",
+			readKeychainBlob: async () => KEYCHAIN_BLOB,
+		});
 		assert.equal(creds.accessToken, "FAKE_KEYCHAIN_ACCESS_TOKEN");
 		assert.equal(creds.refreshToken, "FAKE_KEYCHAIN_REFRESH_TOKEN");
 		assert.equal(creds.expiresAt, 7258118400000);
 	});
 });
 
-test("macOS: empty Keychain → auth_required", async (t) => {
-	if (process.platform !== "darwin") {
-		t.skip("Keychain fallback is macOS-only");
-		return;
-	}
+test("macOS: empty Keychain → auth_required", async () => {
 	await withoutDefaultCredentialsFile(async () => {
 		await assert.rejects(
-			() => readClaudeCredentials(undefined, async () => null),
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					readKeychainBlob: async () => null,
+				}),
 			(err: unknown) => isUsageError(err) && err.status === "auth_required",
 		);
+	});
+});
+
+test("non-darwin platforms never consult the Keychain", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		let consulted = false;
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "linux",
+					readKeychainBlob: async () => {
+						consulted = true;
+						return KEYCHAIN_BLOB;
+					},
+				}),
+			(err: unknown) => isUsageError(err) && err.status === "auth_required",
+		);
+		assert.equal(consulted, false, "the Keychain is a macOS-only fallback");
 	});
 });
 
@@ -131,25 +162,29 @@ test("an explicit custom path never consults the Keychain", async () => {
 	let consulted = false;
 	await assert.rejects(
 		() =>
-			readClaudeCredentials(missing, async () => {
-				consulted = true;
-				return KEYCHAIN_BLOB;
+			readClaudeCredentials(missing, {
+				platform: "darwin",
+				readKeychainBlob: async () => {
+					consulted = true;
+					return KEYCHAIN_BLOB;
+				},
 			}),
 		(err: unknown) => isUsageError(err) && err.status === "auth_required",
 	);
 	assert.equal(consulted, false, "custom path must be taken at face value");
 });
 
-test("malformed Keychain blob → auth_required without leaking it", async (t) => {
-	if (process.platform !== "darwin") {
-		t.skip("Keychain fallback is macOS-only");
-		return;
-	}
+test("malformed Keychain blob → auth_required without leaking it", async () => {
 	await withoutDefaultCredentialsFile(async () => {
 		await assert.rejects(
-			() => readClaudeCredentials(undefined, async () => '{"claudeAiOauth":{"accessToken":"KC_CANARY'),
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					readKeychainBlob: async () => '{"claudeAiOauth":{"accessToken":"KC_CANARY',
+				}),
 			(err: unknown) => {
 				assert.ok(isUsageError(err));
+				assert.equal(err.status, "auth_required");
 				assert.doesNotMatch(err.message, /KC_CANARY/);
 				return true;
 			},
