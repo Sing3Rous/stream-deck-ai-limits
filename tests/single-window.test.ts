@@ -50,6 +50,19 @@ test("provider accent 'frame' draws the brand-colored border", () => {
 	assert.match(codex, /#10a37f/); // Codex teal frame
 });
 
+test("Copilot single-window renders monthly quota countdown and no data for unlimited plans", () => {
+	const copilot = renderSingleWindowIcon(snapshot({
+		provider: "copilot",
+		session: { usedPercent: 25, resetAt: "2026-06-03T06:08:00Z" },
+	}), opts({ resetDisplay: "countdown" }));
+	assert.match(copilot, />MO</);
+	assert.match(copilot, /in 3d 0h/);
+
+	const unlimited = renderSingleWindowIcon(snapshot({ provider: "copilot", session: { usedPercent: null, resetAt: "2026-06-03T06:08:00Z" } }), opts());
+	assert.match(unlimited, /No Data/);
+	assert.doesNotMatch(unlimited, /in 3d/);
+});
+
 test("provider accent 'tint' colors the background", () => {
 	const codex = renderSingleWindowIcon(snapshot({ provider: "codex" }), opts({ providerAccent: "tint" }));
 	assert.match(codex, /fill="#173d34"/); // teal-tinted background

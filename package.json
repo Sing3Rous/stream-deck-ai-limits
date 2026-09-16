@@ -1,13 +1,15 @@
 {
     "name": "stream-deck-ai-limits",
     "version": "0.1.0",
-    "description": "Elgato Stream Deck plugin that shows Claude Code and Codex CLI usage limits (5-hour and weekly) on your keys.",
+    "description": "Elgato Stream Deck plugin that shows Claude Code, Codex CLI, and GitHub Copilot usage limits on your keys.",
     "keywords": [
         "stream-deck",
         "elgato",
         "claude",
         "claude-code",
         "codex",
+        "copilot",
+        "github-copilot",
         "usage",
         "rate-limit"
     ],

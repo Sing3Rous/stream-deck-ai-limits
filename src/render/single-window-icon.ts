@@ -23,7 +23,7 @@ const FONT = "Helvetica, Arial, sans-serif";
  */
 export function renderSingleWindowIcon(snapshot: UsageSnapshot, options: SingleWindowOptions): string {
 	const status = snapshot.status;
-	const label = `${providerLabel(snapshot.provider)} ${windowLabel(options.window)}`;
+	const label = `${providerLabel(snapshot.provider)} ${snapshot.provider === "copilot" ? "MO" : windowLabel(options.window)}`;
 	const provider = providerColors(snapshot.provider);
 	const accentMode = options.providerAccent;
 
@@ -40,7 +40,7 @@ export function renderSingleWindowIcon(snapshot: UsageSnapshot, options: SingleW
 	const accent = paletteForStatus(statusForPercent(win.usedPercent, thresholds)).accent;
 	const palette = paletteForStatus("ok");
 	const resetLines = buildResetLines(win, options);
-	const winText = windowLabel(options.window);
+	const winText = snapshot.provider === "copilot" ? "MO" : windowLabel(options.window);
 
 	const background = accentMode === "tint" ? provider.tint : palette.background;
 	const frame =
@@ -51,7 +51,7 @@ export function renderSingleWindowIcon(snapshot: UsageSnapshot, options: SingleW
 		? `<circle cx="${SIZE - 9}" cy="9" r="3" fill="${palette.textMuted}"><title>stale</title></circle>`
 		: "";
 
-	// Window label (5H/7D) gets the provider's brand color so it stands apart from the reset text.
+	// Window label (5H/7D, MO for Copilot) gets the provider's brand color so it stands apart from the reset text.
 	const winColor = provider.accent;
 	// On a tinted background the default dark track is barely visible — use a light track instead.
 	const trackColor = accentMode === "tint" ? "#b9b9be" : palette.track;
@@ -172,7 +172,15 @@ function messageText(status: UsageSnapshot["status"]): string {
 }
 
 function providerLabel(provider: UsageSnapshot["provider"]): string {
-	return provider === "codex" ? "Codex" : "Claude";
+	switch (provider) {
+		case "codex":
+			return "Codex";
+		case "copilot":
+			return "Copilot";
+		case "claude":
+		default:
+			return "Claude";
+	}
 }
 
 function windowLabel(window: WindowKind): string {

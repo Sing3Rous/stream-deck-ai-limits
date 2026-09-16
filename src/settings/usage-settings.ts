@@ -2,8 +2,8 @@ import type { StatusThresholds, UsageProvider } from "../providers/types.ts";
 import type { DateFormat } from "../utils/time.ts";
 
 /**
- * Settings persisted per usage key (Claude or Codex), edited via the Property Inspector.
- * All fields optional — the resolver fills in safe defaults.
+ * Settings persisted per usage key (Claude, Codex, or Copilot), edited via the Property
+ * Inspector. All fields optional — the resolver fills in safe defaults.
  *
  * Declared as a `type` (not `interface`) so it satisfies the SDK's `JsonObject` constraint on
  * {@link SingletonAction}.
@@ -13,7 +13,7 @@ export type UsageActionSettings = {
 	warningThreshold?: number;
 	criticalThreshold?: number;
 	customCredentialsPath?: string;
-	// Single-window action only (ignored by the combined Claude/Codex actions):
+	// Single-window action only (ignored by the combined Claude/Codex/Copilot actions):
 	provider?: string;
 	window?: string;
 	resetDisplay?: string;
@@ -117,9 +117,11 @@ function pickEnum<T extends string>(value: string | undefined, allowed: readonly
 
 /** Validate the single-window display settings, falling back to sensible defaults. */
 export function resolveSingleWindowSettings(settings: UsageActionSettings = {}): ResolvedSingleWindowSettings {
+	const provider = pickEnum<UsageProvider>(settings.provider, ["claude", "codex", "copilot"], "claude");
 	return {
-		provider: pickEnum<UsageProvider>(settings.provider, ["claude", "codex"], "claude"),
-		window: pickEnum<WindowKind>(settings.window, ["session", "weekly"], "session"),
+		provider,
+		// Copilot has no weekly quota — its session window IS the monthly premium usage.
+		window: provider === "copilot" ? "session" : pickEnum<WindowKind>(settings.window, ["session", "weekly"], "session"),
 		resetDisplay: pickEnum<ResetDisplay>(settings.resetDisplay, ["datetime", "countdown", "both", "none"], "datetime"),
 		dateFormat: pickEnum<DateFormat>(settings.dateFormat, DATE_FORMATS, "day-month"),
 		providerAccent: pickEnum<ProviderAccent>(settings.providerAccent, ["frame", "tint", "none"], "frame"),

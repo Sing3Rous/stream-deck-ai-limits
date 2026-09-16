@@ -1,5 +1,7 @@
 import { genericError, isUsageError } from "../utils/errors.ts";
 import type { UsageProvider, UsageSnapshot } from "../providers/types.ts";
+import { resolveCredentialsPath } from "../utils/paths.ts";
+import type { StatusThresholds } from "../providers/types.ts";
 
 /** Default cache TTL and timer interval (see project decision: 60s default, 15s floor). */
 export const DEFAULT_TTL_MS = 60_000;
@@ -181,7 +183,8 @@ export class UsageCache {
 }
 
 /**
- * Process-wide cache registry, keyed by provider + interval.
+ * Process-wide cache registry, keyed by the provider and every setting which can change the
+ * resulting snapshot. Keys with a different account or threshold must never share usage data.
  *
  * All keys for the same provider/interval share ONE cache so that the last-good snapshot and the
  * 429 backoff persist across key presses, timer ticks, and (critically) tab/folder switches —
@@ -190,12 +193,38 @@ export class UsageCache {
  */
 const sharedCaches = new Map<string, UsageCache>();
 
-export function getSharedCache(provider: UsageProvider, ttlMs: number): UsageCache {
-	const key = `${provider}:${ttlMs}`;
+export interface SharedCacheScope {
+	customCredentialsPath?: string;
+	thresholds: StatusThresholds;
+}
+
+export function getSharedCache(provider: UsageProvider, ttlMs: number, scope?: SharedCacheScope): UsageCache {
+	const credentialsPath = cacheCredentialsPath(scope?.customCredentialsPath);
+	const thresholds = scope?.thresholds;
+	const key = JSON.stringify({
+		provider,
+		ttlMs,
+		credentialsPath,
+		warningThreshold: thresholds?.warning,
+		criticalThreshold: thresholds?.critical,
+	});
 	let cache = sharedCaches.get(key);
 	if (!cache) {
 		cache = new UsageCache({ provider, ttlMs });
 		sharedCaches.set(key, cache);
 	}
 	return cache;
+}
+
+function cacheCredentialsPath(customPath?: string): string | undefined {
+	if (!customPath?.trim()) {
+		return undefined;
+	}
+	try {
+		return resolveCredentialsPath("", customPath);
+	} catch {
+		// The credentials reader will convert an invalid path to auth_required. Keep an isolated
+		// cache entry until then so invalid settings cannot collide with a valid key.
+		return `invalid:${customPath.trim()}`;
+	}
 }

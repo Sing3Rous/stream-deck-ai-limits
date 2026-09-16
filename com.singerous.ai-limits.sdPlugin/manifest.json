@@ -36,10 +36,26 @@
 			]
 		},
 		{
+			"Name": "Copilot Usage",
+			"UUID": "com.singerous.ai-limits.copilot-usage",
+			"Icon": "imgs/actions/copilot/icon",
+			"Tooltip": "Show GitHub Copilot monthly premium usage on your keys.",
+			"PropertyInspectorPath": "ui/copilot.html",
+			"Controllers": [
+				"Keypad"
+			],
+			"States": [
+				{
+					"Image": "imgs/actions/copilot/key",
+					"TitleAlignment": "middle"
+				}
+			]
+		},
+		{
 			"Name": "Usage (single window)",
 			"UUID": "com.singerous.ai-limits.usage-single",
 			"Icon": "imgs/actions/single/icon",
-			"Tooltip": "Show one usage window (Claude/Codex, 5H/7D) with reset time.",
+			"Tooltip": "Show one usage window (Claude/Codex/Copilot, 5H/7D/MO) with reset time.",
 			"PropertyInspectorPath": "ui/single.html",
 			"Controllers": [
 				"Keypad"
@@ -55,7 +71,7 @@
 	"Category": "Claude & Codex Usage",
 	"CategoryIcon": "imgs/plugin/category-icon",
 	"CodePath": "bin/plugin.js",
-	"Description": "Show Claude Code and Codex CLI usage limits (5-hour and weekly) on your keys.",
+	"Description": "Show Claude Code, Codex CLI, and GitHub Copilot usage limits on your keys.",
 	"Icon": "imgs/plugin/marketplace",
 	"SDKVersion": 3,
 	"Software": {
