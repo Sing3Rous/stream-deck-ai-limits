@@ -206,6 +206,76 @@ test("an existing but empty file does not fall back to the Keychain", async () =
 	});
 });
 
+const MCP_ONLY_FILE = JSON.stringify({ mcpOAuth: { "some-server|abc123": { accessToken: "FAKE_MCP_TOKEN" } } });
+
+async function writeDefaultCredentialsFile(contents: string): Promise<void> {
+	const file = resolveClaudeCredentialsPath();
+	await mkdir(path.dirname(file), { recursive: true });
+	await writeFile(file, contents, "utf-8");
+}
+
+test("macOS: a default file holding only MCP sign-ins falls back to the Keychain", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		await writeDefaultCredentialsFile(MCP_ONLY_FILE);
+		const creds = await readClaudeCredentials(undefined, {
+			platform: "darwin",
+			readKeychainBlob: async () => KEYCHAIN_BLOB,
+		});
+		assert.equal(creds.accessToken, "FAKE_KEYCHAIN_ACCESS_TOKEN");
+	});
+});
+
+test("macOS: MCP-only file and an empty Keychain → auth_required", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		await writeDefaultCredentialsFile(MCP_ONLY_FILE);
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					readKeychainBlob: async () => null,
+				}),
+			(err: unknown) => isUsageError(err) && err.status === "auth_required",
+		);
+	});
+});
+
+test("a file whose claudeAiOauth has no token does not fall back to the Keychain", async () => {
+	await withoutDefaultCredentialsFile(async () => {
+		await writeDefaultCredentialsFile(JSON.stringify({ claudeAiOauth: {} }));
+		let consulted = false;
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(undefined, {
+					platform: "darwin",
+					readKeychainBlob: async () => {
+						consulted = true;
+						return KEYCHAIN_BLOB;
+					},
+				}),
+			(err: unknown) => isUsageError(err) && /file has no access token/.test(err.message),
+		);
+		assert.equal(consulted, false, "a login section without a token is a broken login");
+	});
+});
+
+test("an explicit path holding only MCP sign-ins does not fall back to the Keychain", async () => {
+	await withTempFile(MCP_ONLY_FILE, async (file) => {
+		let consulted = false;
+		await assert.rejects(
+			() =>
+				readClaudeCredentials(file, {
+					platform: "darwin",
+					readKeychainBlob: async () => {
+						consulted = true;
+						return KEYCHAIN_BLOB;
+					},
+				}),
+			(err: unknown) => isUsageError(err) && err.status === "auth_required",
+		);
+		assert.equal(consulted, false, "a named file is taken at face value");
+	});
+});
+
 test("non-darwin platforms never consult the Keychain", async () => {
 	await withoutDefaultCredentialsFile(async () => {
 		let consulted = false;

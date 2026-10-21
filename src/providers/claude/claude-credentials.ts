@@ -66,16 +66,28 @@ async function readCredentialsBlob(
 		}
 	}
 
+	if (!allowKeychain) {
+		throw authRequired("Claude credentials not found. Log in with Claude Code first.");
+	}
+	return readKeychainCredentialsBlob(readKeychainBlob);
+}
+
+/**
+ * Fetch the credentials blob from the Keychain.
+ *
+ * @throws {UsageError} `auth_required` when the Keychain yields nothing.
+ */
+async function readKeychainCredentialsBlob(
+	readKeychainBlob: () => Promise<string | null>,
+): Promise<CredentialsBlob> {
 	// `readClaudeKeychainBlob` reports "no credentials" as null rather than by throwing, but it
 	// is an injectable seam: a future reader that throws must not escape as a raw Error, because
 	// `execFile` puts the child's stdout — the token — into `err.message`.
-	let blob: string | null = null;
-	if (allowKeychain) {
-		try {
-			blob = await readKeychainBlob();
-		} catch {
-			blob = null;
-		}
+	let blob: string | null;
+	try {
+		blob = await readKeychainBlob();
+	} catch {
+		blob = null;
 	}
 	if (blob === null) {
 		throw authRequired("Claude credentials not found. Log in with Claude Code first.");
@@ -83,12 +95,23 @@ async function readCredentialsBlob(
 	return { contents: blob, source: "Keychain item" };
 }
 
+/** @throws {UsageError} `auth_required` when the blob is not valid JSON. */
+function parseCredentialsBlob({ contents, source }: CredentialsBlob): RawCredentialsFile {
+	try {
+		return JSON.parse(contents) as RawCredentialsFile;
+	} catch {
+		throw authRequired(`Claude credentials ${source} is not valid JSON.`);
+	}
+}
+
 /**
  * Read and parse Claude Code credentials.
  *
  * Normally this reads `~/.claude/.credentials.json`. On macOS that file does not exist —
  * Claude Code stores the identical JSON payload in the login Keychain — so when the default
- * path is missing there, the Keychain is consulted before giving up. An explicit override
+ * path is missing there, the Keychain is consulted before giving up. Claude Code can still
+ * write that file on macOS to hold MCP server sign-ins alone (`mcpOAuth`), so a default file
+ * with no `claudeAiOauth` section also falls back to the Keychain. An explicit override
  * path is always taken at face value: if the user named a file, a missing file is an error,
  * not an invitation to read the Keychain.
  *
@@ -105,25 +128,22 @@ export async function readClaudeCredentials(
 	const readKeychainBlob = options.readKeychainBlob ?? readClaudeKeychainBlob;
 	const platform = options.platform ?? process.platform;
 	const filePath = resolveClaudeCredentialsPath(customPath);
-	const usingDefaultPath = !customPath?.trim();
+	const allowKeychain = !customPath?.trim() && platform === "darwin";
 
-	const { contents, source } = await readCredentialsBlob(
-		filePath,
-		usingDefaultPath && platform === "darwin",
-		readKeychainBlob,
-	);
+	let blob = await readCredentialsBlob(filePath, allowKeychain, readKeychainBlob);
+	let parsed = parseCredentialsBlob(blob);
 
-	let parsed: RawCredentialsFile;
-	try {
-		parsed = JSON.parse(contents) as RawCredentialsFile;
-	} catch {
-		throw authRequired(`Claude credentials ${source} is not valid JSON.`);
+	// A file without the section is not a broken login, just not a login at all (MCP sign-ins
+	// only), so it gets the same Keychain fallback as a missing file.
+	if (blob.source === "file" && allowKeychain && parsed?.claudeAiOauth === undefined) {
+		blob = await readKeychainCredentialsBlob(readKeychainBlob);
+		parsed = parseCredentialsBlob(blob);
 	}
 
 	const oauth = parsed?.claudeAiOauth;
 	const accessToken = typeof oauth?.accessToken === "string" ? oauth.accessToken : "";
 	if (!accessToken) {
-		throw authRequired(`Claude credentials ${source} has no access token.`);
+		throw authRequired(`Claude credentials ${blob.source} has no access token.`);
 	}
 
 	return {
