@@ -42,8 +42,8 @@ export function isUsageError(value: unknown): value is UsageError {
 }
 
 /**
- * Signals an HTTP 401 from a usage endpoint, so the provider can attempt exactly one token
- * refresh + retry before surfacing `auth_required` to the UI.
+ * Signals an HTTP 401 from a usage endpoint, so the provider can surface
+ * `auth_required` while leaving credential renewal to the owning CLI.
  */
 export class UnauthorizedError extends Error {
 	constructor(message = "Usage request was unauthorized.") {

@@ -138,7 +138,7 @@ export const DEFAULT_EXPIRY_SKEW_MS = 60_000;
 
 /**
  * Whether the access token is expired (or about to expire within `skewMs`). A `null` expiry is
- * treated as not-expired — let the API decide (a 401 will trigger a refresh downstream).
+ * treated as not-expired — let the API decide (a 401 asks the user to open Claude Code).
  */
 export function isExpired(
 	expiresAt: number | null,

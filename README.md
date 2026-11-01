@@ -135,6 +135,8 @@ Pressing a key forces an immediate refresh (subject to the throttle above).
 
 ## Security
 
+Claude token renewal belongs to Claude Code. The plugin never exchanges its refresh token. If the access token expires or usage returns 401, cached usage stays stale (or shows Login Required without a cache). Open Claude Code to renew access; the next plugin poll reads the updated credentials automatically.
+
 - The plugin **reads local credentials** created by the official Claude Code / Codex login flows, or
   obtained from the GitHub CLI (`gh auth token`). It never asks you to paste a token.
 - Tokens are kept **in memory only**. The plugin does **not** write them to Stream Deck settings, and

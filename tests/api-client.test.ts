@@ -50,7 +50,7 @@ test("sends correct endpoint, Authorization and beta headers", async () => {
 	});
 });
 
-test("401 throws UnauthorizedError (so caller can refresh + retry)", async () => {
+test("401 throws UnauthorizedError (caller waits for CLI renewal)", async () => {
 	await withFetch(() => jsonResponse(401, { error: "unauthorized" }), async () => {
 		await assert.rejects(() => fetchClaudeUsage("FAKE"), (err: unknown) => err instanceof UnauthorizedError);
 	});
