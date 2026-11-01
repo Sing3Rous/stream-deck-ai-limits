@@ -24,7 +24,7 @@ function usageHeaders(accessToken: string): Record<string, string> {
  *
  * @param accessToken A valid OAuth access token (caller is responsible for freshness/refresh).
  * @returns The parsed raw usage response on HTTP 200.
- * @throws {UnauthorizedError} on HTTP 401 (caller may refresh + retry).
+ * @throws {UnauthorizedError} on HTTP 401 (caller waits for Claude Code to renew credentials).
  * @throws {UsageError} `rate_limited` on 429, or `error` on network/timeout/parse/other-HTTP.
  *
  * Never logs the access token or the Authorization header.
